@@ -58,11 +58,10 @@ class WebPicker {
 
         // Get sticker packs
         this.app.get('/api/packs', (req, res) => {
-            res.json([
-                'memezey',
-                'pepetop',
-                'HotCherry'
-            ]);
+            const defaultPacks = ['memezey', 'pepetop', 'HotCherry'];
+            const customPacks = this.getCustomPacks().map(pack => pack.name);
+            const allPacks = [...defaultPacks, ...customPacks];
+            res.json(allPacks);
         });
 
         // Get stickers from a pack
@@ -74,7 +73,15 @@ class WebPicker {
                 return res.json(this.stickerCache.get(packName));
             }
 
-            const stickers = await this.telegram.getAllStickerUrls(packName);
+            // Check if it's a custom pack and get the telegram name
+            let telegramPackName = packName;
+            const customPacks = this.getCustomPacks();
+            const customPack = customPacks.find(pack => pack.name === packName);
+            if (customPack) {
+                telegramPackName = customPack.telegramName;
+            }
+
+            const stickers = await this.telegram.getAllStickerUrls(telegramPackName);
 
             // Cache the result
             if (stickers.length > 0) {
@@ -97,7 +104,15 @@ class WebPicker {
             const cachedStickers = this.stickerCache.get(packName);
             const stickerData = cachedStickers && cachedStickers[stickerIndex];
 
-            const sticker = await this.telegram.getStickerUrl(packName, stickerIndex);
+            // Check if it's a custom pack and get the telegram name
+            let telegramPackName = packName;
+            const customPacks = this.getCustomPacks();
+            const customPack = customPacks.find(pack => pack.name === packName);
+            if (customPack) {
+                telegramPackName = customPack.telegramName;
+            }
+
+            const sticker = await this.telegram.getStickerUrl(telegramPackName, stickerIndex);
             if (sticker) {
                 let stickerUrl = sticker;
                 let gifFilePath = null;
@@ -180,6 +195,90 @@ class WebPicker {
 
             res.json({ sessionId });
         });
+
+        // Add custom sticker pack endpoint
+        this.app.post('/api/add-pack', async (req, res) => {
+            try {
+                const { packName, packUrl } = req.body;
+
+                if (!packName || !packUrl) {
+                    return res.status(400).json({ error: 'Pack name and URL are required' });
+                }
+
+                // Extract pack name from URL (e.g., https://t.me/addstickers/PackName -> PackName)
+                const urlMatch = packUrl.match(/(?:t\.me\/addstickers\/|telegram\.me\/addstickers\/)([^\/\?\#]+)/i);
+                if (!urlMatch) {
+                    return res.status(400).json({ error: 'Invalid Telegram sticker pack URL. Expected format: https://t.me/addstickers/PackName' });
+                }
+
+                const telegramPackName = urlMatch[1];
+
+                // Add pack to custom packs storage
+                await this.addCustomPack(packName, telegramPackName);
+
+                res.json({ message: 'Pack added successfully' });
+            } catch (error) {
+                console.error('Error adding custom pack:', error);
+                res.status(500).json({ error: 'Failed to add pack: ' + error.message });
+            }
+        });
+    }
+
+    async addCustomPack(packName, telegramPackName) {
+        const fs = require('fs');
+        const path = require('path');
+
+        const customPacksFile = path.join(__dirname, '..', 'custom-packs.json');
+
+        let customPacks = [];
+        try {
+            if (fs.existsSync(customPacksFile)) {
+                const data = fs.readFileSync(customPacksFile, 'utf8');
+                customPacks = JSON.parse(data);
+            }
+        } catch (error) {
+            console.error('Error reading custom packs:', error);
+        }
+
+        // Check if pack already exists
+        const existingPack = customPacks.find(pack =>
+            pack.name.toLowerCase() === packName.toLowerCase() ||
+            pack.telegramName === telegramPackName
+        );
+
+        if (existingPack) {
+            throw new Error('Pack already exists');
+        }
+
+        // Add new pack
+        customPacks.push({
+            name: packName,
+            telegramName: telegramPackName,
+            added: new Date().toISOString()
+        });
+
+        // Save to file
+        fs.writeFileSync(customPacksFile, JSON.stringify(customPacks, null, 2));
+
+        console.log(`Added custom pack: ${packName} (${telegramPackName})`);
+    }
+
+    getCustomPacks() {
+        const fs = require('fs');
+        const path = require('path');
+
+        const customPacksFile = path.join(__dirname, '..', 'custom-packs.json');
+
+        try {
+            if (fs.existsSync(customPacksFile)) {
+                const data = fs.readFileSync(customPacksFile, 'utf8');
+                return JSON.parse(data);
+            }
+        } catch (error) {
+            console.error('Error reading custom packs:', error);
+        }
+
+        return [];
     }
 
     start() {

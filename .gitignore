@@ -4,3 +4,4 @@ gif-cache/
 temp/
 *.log
 .DS_Store
+custom-packs.json

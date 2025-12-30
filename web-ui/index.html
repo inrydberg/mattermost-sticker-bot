@@ -142,10 +142,9 @@
             100% { transform: rotate(360deg); }
         }
 
-        .back-btn {
+        .back-btn, .add-pack-btn {
             position: fixed;
             top: 20px;
-            left: 20px;
             background: rgba(255, 255, 255, 0.2);
             border: 2px solid rgba(255, 255, 255, 0.3);
             color: white;
@@ -158,9 +157,111 @@
             z-index: 100;
         }
 
-        .back-btn:hover {
+        .back-btn {
+            left: 20px;
+        }
+
+        .add-pack-btn {
+            right: 20px;
+        }
+
+        .back-btn:hover, .add-pack-btn:hover {
             background: rgba(255, 255, 255, 0.3);
+        }
+
+        .back-btn:hover {
             transform: translateX(-2px);
+        }
+
+        .add-pack-btn:hover {
+            transform: translateX(2px);
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            color: white;
+        }
+
+        .modal h2 {
+            margin: 0 0 20px 0;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group .example {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 4px;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-cancel {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-add {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
         }
 
         .toast {
@@ -211,6 +312,7 @@
 </head>
 <body>
     <button class="back-btn" id="backBtn" style="display: none;">← Back</button>
+    <button class="add-pack-btn" id="addPackBtn">+ Add Sticker Pack</button>
 
     <div class="header">
         <h1>Telegram Sticker Picker</h1>
@@ -236,6 +338,29 @@
 
     <div class="toast" id="toast"></div>
 
+    <!-- Add Pack Modal -->
+    <div class="modal" id="addPackModal">
+        <div class="modal-content">
+            <h2>Add Custom Sticker Pack</h2>
+            <form id="addPackForm">
+                <div class="form-group">
+                    <label for="packName">Pack Name:</label>
+                    <input type="text" id="packName" placeholder="e.g., MyFavorites" required>
+                    <div class="example">A short name to identify your pack</div>
+                </div>
+                <div class="form-group">
+                    <label for="packUrl">Telegram Sticker Pack URL:</label>
+                    <input type="url" id="packUrl" placeholder="https://t.me/addstickers/PackName" required>
+                    <div class="example">Format: https://t.me/addstickers/PackName</div>
+                </div>
+                <div class="form-buttons">
+                    <button type="button" class="btn btn-cancel" id="cancelAddPack">Cancel</button>
+                    <button type="submit" class="btn btn-add">Add Pack</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const params = new URLSearchParams(window.location.search);
         const sessionId = params.get('session');
@@ -248,6 +373,10 @@
         const stickerGrid = document.getElementById('stickerGrid');
         const backBtn = document.getElementById('backBtn');
         const toast = document.getElementById('toast');
+        const addPackBtn = document.getElementById('addPackBtn');
+        const addPackModal = document.getElementById('addPackModal');
+        const addPackForm = document.getElementById('addPackForm');
+        const cancelAddPack = document.getElementById('cancelAddPack');
 
         function showToast(message, duration = 1000) {
             toast.textContent = message;
@@ -257,6 +386,37 @@
                 toast.classList.remove('show', 'converting');
                 toast.textContent = ''; // Clear text to avoid lingering
             }, duration);
+        }
+
+        // Modal handling
+        function showAddPackModal() {
+            addPackModal.classList.add('show');
+        }
+
+        function hideAddPackModal() {
+            addPackModal.classList.remove('show');
+            addPackForm.reset();
+        }
+
+        async function addCustomPack(packName, packUrl) {
+            try {
+                const response = await fetch('/api/add-pack', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ packName, packUrl })
+                });
+
+                if (response.ok) {
+                    showToast('Pack added successfully!');
+                    hideAddPackModal();
+                    loadPacks(); // Refresh the pack list
+                } else {
+                    const error = await response.text();
+                    showToast('Failed to add pack: ' + error);
+                }
+            } catch (error) {
+                showToast('Error adding pack: ' + error.message);
+            }
         }
 
         async function loadPacks() {
@@ -466,6 +626,27 @@
             packSelector.style.display = 'block';
             stickerContainer.style.display = 'none';
             backBtn.style.display = 'none';
+        };
+
+        // Modal event handlers
+        addPackBtn.onclick = showAddPackModal;
+        cancelAddPack.onclick = hideAddPackModal;
+
+        addPackForm.onsubmit = (e) => {
+            e.preventDefault();
+            const packName = document.getElementById('packName').value.trim();
+            const packUrl = document.getElementById('packUrl').value.trim();
+
+            if (packName && packUrl) {
+                addCustomPack(packName, packUrl);
+            }
+        };
+
+        // Close modal when clicking outside
+        addPackModal.onclick = (e) => {
+            if (e.target === addPackModal) {
+                hideAddPackModal();
+            }
         };
 
         // Add pulse animation

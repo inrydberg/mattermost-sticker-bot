@@ -33,6 +33,7 @@ Bot will be running on port 3333 for web interface!
 - **Web Interface**: Interactive sticker picker at `http://localhost:3333`
 - **Real-time Updates**: WebSocket integration for instant sticker delivery
 - **User Attribution**: Bot mentions the user who sent each sticker for clarity
+- **Custom Sticker Packs**: Add your own Telegram sticker packs via the web interface
 - **Ephemeral Messages**: Commands don't clutter channels - bot messages appear only to you
 - **Automatic Cache Management**: Smart 100MB cache limit with auto-cleanup
 
@@ -277,17 +278,23 @@ npm test
 DEBUG=* npm start
 ```
 
-### Adding New Sticker Packs
+### Adding Custom Sticker Packs
 
-Edit `web-ui/web-picker.js` line 60-66:
-```javascript
-res.json([
-    'memezey',
-    'pepetop',
-    'HotCherry',
-    'your_new_pack_here'  // Add your pack
-]);
-```
+You can easily add your own Telegram sticker packs through the web interface:
+
+1. **Open the sticker picker** with `@stickerbot ass`
+2. **Click "+ Add Sticker Pack"** (top-right corner)
+3. **Enter pack details:**
+   - **Pack Name**: A friendly name (e.g., "My Favorites")
+   - **Telegram URL**: `https://t.me/addstickers/PackName`
+4. **Click "Add Pack"** - your custom pack will appear immediately!
+
+**Finding Telegram Pack URLs:**
+- Open any Telegram sticker pack
+- Share the pack to get a link like `https://t.me/addstickers/PackName`
+- Use that URL in the bot
+
+Custom packs are stored locally and persist between restarts.
 
 ## Default Sticker Packs
 
