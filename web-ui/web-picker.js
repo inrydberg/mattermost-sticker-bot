@@ -120,7 +120,8 @@ class WebPicker {
                 // Convert WEBM or TGS to GIF if converter is available
                 if (this.webmHandler) {
                     try {
-                        const baseUrl = `http://localhost:${this.port}`;
+                        const domain = process.env.DOMAIN || 'http://localhost';
+                        const baseUrl = `${domain}:${this.port}`;
 
                         // Check if it's a WEBM file
                         if (sticker.includes('.webm')) {
@@ -282,8 +283,9 @@ class WebPicker {
     }
 
     start() {
-        this.app.listen(this.port, '0.0.0.0', () => {
-            console.log(`🌐 Web picker running on http://localhost:${this.port}`);
+        const host = process.env.ASS_HOST || '0.0.0.0';
+        this.app.listen(this.port, host, () => {
+            console.log(`🌐 Web picker running on http://${host}:${this.port}`);
         });
     }
 
@@ -299,7 +301,8 @@ class WebPicker {
         });
 
         console.log(`Generated picker link for user: ${username || userId} (${userId})`);
-        return `http://localhost:${this.port}/?session=${sessionId}`;
+        const domain = process.env.DOMAIN || 'http://localhost';
+        return `${domain}:${this.port}/?session=${sessionId}`;
     }
 }
 
