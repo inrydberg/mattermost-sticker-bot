@@ -8,7 +8,9 @@ A powerful bot that brings Telegram stickers to your Mattermost channels! Featur
 
 Watch the bot in action:
 
-[📹 View Demo Video](https://github.com/inrydberg/mattermost-sticker-bot/releases/download/release/usage_example.mp4)
+![Demo](https://github.com/inrydberg/mattermost-sticker-bot/releases/download/release/usage_demo.gif)
+
+[📹 View Full Video](https://github.com/inrydberg/mattermost-sticker-bot/releases/download/release/usage_example.mp4)
 
 ## Quickstart
 
