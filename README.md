@@ -289,7 +289,16 @@ res.json([
 ]);
 ```
 
-## Dependencies
+## Default Sticker Packs
+
+Browse sticker packs:
+- **memezey** - Popular meme stickers
+- **pepetop** - Top Pepe collection
+- **HotCherry** - Cherry themed stickers
+
+These sticker packs are included by default and ready to use immediately.
+
+## npm Dependencies
 
 ### Core Dependencies
 - `express` - Web server for sticker picker
