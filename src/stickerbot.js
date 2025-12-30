@@ -27,7 +27,7 @@ class StickerBot {
         this.tgsHandler = new TgsHandler();
 
         // Initialize web picker with both handlers
-        this.webPicker = new WebPicker(this, this.telegram, 3333, this.webmHandler, this.tgsHandler);
+        this.webPicker = new WebPicker(this, this.telegram, process.env.ASS_PORT || 3333, this.webmHandler, this.tgsHandler);
         this.webPicker.start();
 
         // Initialize and start cache manager
