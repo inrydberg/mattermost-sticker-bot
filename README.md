@@ -17,7 +17,7 @@ cp .env.example .env
 # Edit .env with your tokens (see Configuration section)
 
 # 4. Run the bot
-npm start
+npm start &
 
 # 5. Test in Mattermost
 # Type: @stickerbot help
@@ -30,7 +30,7 @@ Bot will be running on port 3333 for web interface!
 - **Telegram Sticker Integration**: Access real Telegram sticker packs
 - **WebM Video Stickers**: Automatic conversion to GIF format
 - **TGS Animated Stickers**: Lottie-based animations converted to GIF using lottie-converter
-- **Web Interface**: Interactive sticker picker at `http://localhost:3333`
+- **Web Interface**: Interactive sticker picker (configurable via ASS_PORT)
 - **Real-time Updates**: WebSocket integration for instant sticker delivery
 - **User Attribution**: Bot mentions the user who sent each sticker for clarity
 - **Custom Sticker Packs**: Add your own Telegram sticker packs via the web interface
@@ -90,14 +90,23 @@ cp .env.example .env
 
 Edit `.env` with your tokens:
 ```env
-# Mattermost Configuration
+# Server Configuration
+DOMAIN=http://localhost
+WS_DOMAIN=ws://localhost
+MM_PORT=8065
+ASS_PORT=3333
+ASS_HOST=0.0.0.0
+
+# Bot Tokens
 MM_BOT_TOKEN=your_mattermost_bot_token_here
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+
+# Mattermost Bot Configuration (auto-filled from server configuration)
 MM_SERVER_URL=http://localhost:8065
 MM_WS_URL=ws://localhost:8065/api/v4/websocket
-
-# Telegram Bot Token (get from @BotFather)
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 ```
+
+**Note:** dotenv doesn't support variable substitution (e.g., `${DOMAIN}:${MM_PORT}`), so the Mattermost URLs must be hardcoded. This is a one-time setup - adjust the URLs to match your server configuration.
 
 ## Mattermost Bot Setup
 
@@ -135,9 +144,9 @@ Then restart Mattermost: `docker-compose down && docker-compose up -d`
 
 ### Production
 ```bash
-npm start
+npm start &
 # or
-node src/stickerbot.js
+node src/stickerbot.js &
 ```
 
 ### Development Mode (with auto-reload)
@@ -147,7 +156,7 @@ npm run dev
 
 The bot will:
 - ✅ Connect to Mattermost WebSocket
-- ✅ Start web picker on http://localhost:3333
+- ✅ Start web picker on configured ASS_PORT (default 3333)
 - ✅ Initialize cache manager
 - ✅ Begin listening for commands
 
@@ -259,7 +268,7 @@ The bot includes intelligent cache management:
 ### Web picker not loading?
 - ✅ Check port 3333 is not in use
 - ✅ Verify firewall allows port 3333
-- ✅ Try accessing directly: `http://localhost:3333`
+- ✅ Try accessing directly at configured domain and ASS_PORT
 
 ### Cache issues?
 - ✅ Check cache size: `du -sh gif-cache/`
