@@ -1,0 +1,33 @@
+{
+  "name": "mattermost-sticker-bot",
+  "version": "1.0.0",
+  "description": "A fun sticker bot for Mattermost",
+  "main": "stickerbot.js",
+  "scripts": {
+    "start": "node stickerbot.js",
+    "dev": "nodemon stickerbot.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@lottiefiles/lottie-js": "^0.4.2",
+    "axios": "^1.6.2",
+    "canvas": "^3.2.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "form-data": "^4.0.0",
+    "gif-encoder-2": "^1.0.5",
+    "gifenc": "^1.0.3",
+    "jsdom": "^27.4.0",
+    "lottie-converter": "^1.0.0",
+    "lottie-node": "^2.0.0",
+    "lottie-web": "^5.13.0",
+    "pako": "^2.1.0",
+    "puppeteer": "^24.34.0",
+    "sharp": "^0.34.5",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+.env
+gif-cache/
+temp/
+*.log
+.DS_Store

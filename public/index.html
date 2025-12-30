@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Sticker Picker</title>
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .pack-selector {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .pack-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .pack-btn {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .pack-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            background: #fff;
+        }
+
+        .pack-btn.active {
+            background: #5865f2;
+            color: white;
+        }
+
+        .sticker-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 12px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .sticker-item {
+            aspect-ratio: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+
+        .sticker-item:hover {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .sticker-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 8px;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            font-weight: 500;
+            z-index: 100;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-2px);
+        }
+
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 60px;
+            border-radius: 16px;
+            font-size: 24px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            min-width: 300px;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .toast.converting {
+            animation: pulse-bg 1.5s infinite;
+        }
+
+        @keyframes pulse-bg {
+            0%, 100% { opacity: 0.95; }
+            50% { opacity: 1; }
+        }
+
+        @media (max-width: 600px) {
+            .sticker-grid {
+                grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+                gap: 8px;
+            }
+
+            .pack-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="back-btn" id="backBtn" style="display: none;">← Back</button>
+
+    <div class="header">
+        <h1>Telegram Sticker Picker</h1>
+    </div>
+
+    <div class="pack-selector" id="packSelector">
+        <div class="pack-grid" id="packGrid">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading sticker packs...
+            </div>
+        </div>
+    </div>
+
+    <div class="sticker-container" id="stickerContainer" style="display: none;">
+        <div class="sticker-grid" id="stickerGrid">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading stickers...
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const sessionId = params.get('session');
+        let currentPack = null;
+        let currentStickers = [];
+
+        const packSelector = document.getElementById('packSelector');
+        const stickerContainer = document.getElementById('stickerContainer');
+        const packGrid = document.getElementById('packGrid');
+        const stickerGrid = document.getElementById('stickerGrid');
+        const backBtn = document.getElementById('backBtn');
+        const toast = document.getElementById('toast');
+
+        function showToast(message, duration = 1000) {
+            toast.textContent = message;
+            toast.classList.remove('converting');
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show', 'converting');
+                toast.textContent = ''; // Clear text to avoid lingering
+            }, duration);
+        }
+
+        async function loadPacks() {
+            try {
+                const response = await fetch('/api/packs');
+                const packs = await response.json();
+
+                packGrid.innerHTML = '';
+                packs.forEach(pack => {
+                    const btn = document.createElement('button');
+                    btn.className = 'pack-btn';
+                    btn.textContent = pack;
+                    btn.onclick = () => loadStickers(pack);
+                    packGrid.appendChild(btn);
+                });
+            } catch (error) {
+                packGrid.innerHTML = '<div class="loading">Failed to load packs</div>';
+            }
+        }
+
+        async function loadStickers(packName) {
+            currentPack = packName;
+            packSelector.style.display = 'none';
+            stickerContainer.style.display = 'block';
+            backBtn.style.display = 'block';
+
+            // Update active pack button
+            document.querySelectorAll('.pack-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent === packName);
+            });
+
+            stickerGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading stickers...</div>';
+
+            try {
+                const response = await fetch(`/api/pack/${packName}`);
+                currentStickers = await response.json();
+
+                stickerGrid.innerHTML = '';
+
+                // Load stickers in batches for faster initial display
+                const batchSize = 10;
+                let loaded = 0;
+
+                function loadBatch() {
+                    const batch = currentStickers.slice(loaded, loaded + batchSize);
+                    batch.forEach((sticker, i) => {
+                        const index = loaded + i;
+                        const div = document.createElement('div');
+                        div.className = 'sticker-item';
+                        div.onclick = () => sendSticker(index);
+
+                        // Check sticker type based on URL extension
+                        const url = sticker.url;
+
+                        // Log what we're receiving for debugging
+                        if (index === 0) {
+                            console.log('First sticker data:', {
+                                url: url,
+                                isAnimated: sticker.isAnimated,
+                                isVideo: sticker.isVideo,
+                                thumbnailUrl: sticker.thumbnailUrl
+                            });
+                        }
+
+                        if (sticker.isAnimated && url.includes('.tgs')) {
+                            // TGS animated sticker - render with Lottie
+                            const container = document.createElement('div');
+                            container.style.cssText = 'width: 100%; height: 100%; position: relative;';
+                            div.appendChild(container);
+
+                            // Add TGS badge
+                            const badge = document.createElement('div');
+                            badge.style.cssText = 'position: absolute; top: 2px; right: 2px; background: rgba(102, 126, 234, 0.9); color: white; padding: 2px 5px; border-radius: 10px; font-size: 10px; font-weight: bold; z-index: 10;';
+                            badge.textContent = 'TGS';
+                            div.appendChild(badge);
+
+                            // Use proxy to avoid CORS issues
+                            const proxyUrl = `/proxy/tgs?url=${encodeURIComponent(url)}`;
+
+                            // Download and decompress TGS file, then render with Lottie
+                            fetch(proxyUrl)
+                                .then(response => response.arrayBuffer())
+                                .then(buffer => {
+                                    // Decompress TGS (gzipped Lottie JSON)
+                                    const decompressed = pako.ungzip(new Uint8Array(buffer), { to: 'string' });
+                                    const animationData = JSON.parse(decompressed);
+
+                                    // Create Lottie animation with optimizations
+                                    const animation = lottie.loadAnimation({
+                                        container: container,
+                                        renderer: 'canvas', // Canvas is faster than SVG
+                                        loop: true,
+                                        autoplay: true,
+                                        animationData: animationData,
+                                        rendererSettings: {
+                                            preserveAspectRatio: 'xMidYMid slice',
+                                            clearCanvas: true,
+                                            progressiveLoad: false,
+                                            hideOnTransparent: true
+                                        }
+                                    });
+                                })
+                                .catch(err => {
+                                    console.error('Failed to load TGS:', err);
+                                    container.innerHTML = '<div style="text-align: center; font-size: 10px; color: #667eea; padding: 10px;">Failed to<br>load TGS</div>';
+                                });
+                        } else if (url.includes('.webm')) {
+                            // WEBM video sticker
+                            const video = document.createElement('video');
+                            video.src = url;
+                            video.autoplay = true;
+                            video.loop = true;
+                            video.muted = true;
+                            video.playsInline = true;
+                            video.style.width = '100%';
+                            video.style.height = '100%';
+                            video.style.objectFit = 'contain';
+                            div.appendChild(video);
+
+                            // Add WEBM badge
+                            const badge = document.createElement('div');
+                            badge.style.cssText = 'position: absolute; top: 2px; right: 2px; background: rgba(102, 126, 234, 0.9); color: white; padding: 2px 5px; border-radius: 10px; font-size: 10px; font-weight: bold;';
+                            badge.textContent = 'WEBM';
+                            div.appendChild(badge);
+                        } else if (!url.includes('.tgs')) {
+                            // Regular static sticker only (NOT TGS)
+                            const img = document.createElement('img');
+                            img.src = url;
+                            img.alt = sticker.emoji || 'Sticker';
+
+                            // Add IMG badge for static images
+                            const badge = document.createElement('div');
+                            badge.style.cssText = 'position: absolute; top: 2px; right: 2px; background: rgba(100, 100, 100, 0.7); color: white; padding: 2px 5px; border-radius: 10px; font-size: 10px; font-weight: bold;';
+                            badge.textContent = 'IMG';
+                            div.appendChild(badge);
+
+                            div.appendChild(img);
+                        }
+
+                        stickerGrid.appendChild(div);
+                    });
+
+                    loaded += batchSize;
+                    if (loaded < currentStickers.length) {
+                        requestAnimationFrame(loadBatch);
+                    }
+                }
+
+                loadBatch();
+            } catch (error) {
+                stickerGrid.innerHTML = '<div class="loading">Failed to load stickers</div>';
+            }
+        }
+
+        async function sendSticker(index) {
+            if (!sessionId) {
+                showToast('❌ Invalid session');
+                return;
+            }
+
+            // ALWAYS show converting/sending message immediately when sticker is clicked
+            const sticker = currentStickers[index];
+            const isAnimated = sticker && (sticker.isVideo || sticker.url.includes('.webm') || sticker.isAnimated);
+
+            if (isAnimated) {
+                toast.textContent = '⏳ Converting to GIF...';
+            } else {
+                toast.textContent = '📤 Sending sticker...';
+            }
+            toast.classList.add('show', 'converting');
+
+            try {
+                const response = await fetch('/api/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        packName: currentPack,
+                        stickerIndex: index,
+                        sessionId: sessionId
+                    })
+                });
+
+                if (response.ok) {
+                    // Clear converting status and show success
+                    showToast('✅ Sticker sent!');
+
+                    // Visual feedback
+                    const stickerItems = document.querySelectorAll('.sticker-item');
+                    if (stickerItems[index]) {
+                        stickerItems[index].style.animation = 'pulse 0.3s';
+                        setTimeout(() => {
+                            stickerItems[index].style.animation = '';
+                        }, 300);
+                    }
+                } else {
+                    toast.classList.remove('converting');
+                    showToast('❌ Failed to send');
+                }
+            } catch (error) {
+                showToast('❌ Network error');
+            }
+        }
+
+        backBtn.onclick = () => {
+            packSelector.style.display = 'block';
+            stickerContainer.style.display = 'none';
+            backBtn.style.display = 'none';
+        };
+
+        // Add pulse animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(0.9); }
+                100% { transform: scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Initialize
+        loadPacks();
+
+        // Make it work well in popup window
+        if (window.opener) {
+            document.title = 'Sticker Picker';
+        }
+    </script>
+</body>
+</html>
