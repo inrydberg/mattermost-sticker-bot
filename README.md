@@ -1,6 +1,6 @@
 # Mattermost Sticker Bot
 
-![Web Picker Interface](example_1.png)
+![Web Picker Interface](https://github.com/inrydberg/mattermost-sticker-bot/releases/download/release/example_1.png)
 
 A powerful bot that brings Telegram stickers to your Mattermost channels! Features full support for both static images and animated WebM/TGS stickers with automatic GIF conversion.
 
@@ -8,7 +8,7 @@ A powerful bot that brings Telegram stickers to your Mattermost channels! Featur
 
 Watch the bot in action:
 
-[📹 View Demo Video](usage_example.mp4)
+[📹 View Demo Video](https://github.com/inrydberg/mattermost-sticker-bot/releases/download/release/usage_example.mp4)
 
 ## Quickstart
 
@@ -45,7 +45,7 @@ Bot will be running on port 3333 for web interface!
 - **Ephemeral Messages**: Commands don't clutter channels - bot messages appear only to you
 - **Automatic Cache Management**: Smart 100MB cache limit with auto-cleanup
 
-![Telegram Stickers in Mattermost](example_2.png)
+![Telegram Stickers in Mattermost](https://github.com/inrydberg/mattermost-sticker-bot/releases/download/release/example_2.png)
 
 ## Prerequisites
 
