@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-mmuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mmtest}
+      POSTGRES_DB: ${DB_NAME:-mattermost_test}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - mattermost
+
+  mattermost:
+    image: mattermost/mattermost-team-edition:latest
+    environment:
+      - MM_SQLSETTINGS_DRIVERNAME=postgres
+      - MM_SQLSETTINGS_DATASOURCE=postgres://${DB_USER:-mmuser}:${DB_PASSWORD:-mmtest}@db:5432/${DB_NAME:-mattermost_test}?sslmode=disable&connect_timeout=10
+      - MM_SERVICESETTINGS_SITEURL=http://localhost:8065
+      - MM_SERVICESETTINGS_ALLOWCORSFROM=*
+    ports:
+      - "8065:8065"
+    volumes:
+      - mm_config:/mattermost/config
+      - mm_data:/mattermost/data
+      - mm_logs:/mattermost/logs
+      - mm_plugins:/mattermost/plugins
+      - mm_client_plugins:/mattermost/client/plugins
+    depends_on:
+      - db
+    networks:
+      - mattermost
+
+  sticker-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      network: host
+    env_file:
+      - ../.env
+    environment:
+      # Override for internal docker networking
+      - MM_SERVER_URL=http://mattermost:8065
+      - MM_WS_URL=ws://mattermost:8065/api/v4/websocket
+
+    ports:
+      - "3333:3333"
+    volumes:
+      - gif_cache:/app/gif-cache
+      - custom_packs:/app/custom-packs
+    depends_on:
+      - mattermost
+    networks:
+      - mattermost
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  mm_config:
+  mm_data:
+  mm_logs:
+  mm_plugins:
+  mm_client_plugins:
+  gif_cache:
+  custom_packs:
+
+networks:
+  mattermost:
+    driver: bridge

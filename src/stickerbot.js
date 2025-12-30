@@ -1,3 +1,5 @@
+// Load .env file if it exists (for local development)
+// In Docker, environment variables are passed directly
 require('dotenv').config();
 
 const axios = require('axios');

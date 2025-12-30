@@ -61,7 +61,6 @@ class WebmHandler {
         }
 
         const tempWebm = path.join(this.tempDir, `${hash}.webm`);
-        const tempGif = path.join(this.tempDir, `${hash}.gif`);
 
         try {
             console.log(`Downloading WEBM from ${webmUrl}`);
@@ -69,8 +68,8 @@ class WebmHandler {
 
             console.log(`Converting WEBM to GIF: ${hash}`);
             await new Promise((resolve, reject) => {
-                // ffmpeg command with optimizations for sticker-sized GIFs
-                const command = `ffmpeg -i "${tempWebm}" -vf "fps=20,scale=256:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 "${tempGif}"`;
+                // ffmpeg command with optimizations for sticker-sized GIFs - output directly to cache
+                const command = `ffmpeg -i "${tempWebm}" -vf "fps=20,scale=256:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 "${cachedGif}"`;
 
                 exec(command, (error, stdout, stderr) => {
                     if (error) {
@@ -82,10 +81,7 @@ class WebmHandler {
                 });
             });
 
-            // Move to cache
-            await fs.rename(tempGif, cachedGif);
-
-            // Clean up temp file
+            // Clean up temp webm file only
             await fs.unlink(tempWebm).catch(() => {});
 
             console.log(`Converted successfully: ${hash}`);
@@ -94,7 +90,7 @@ class WebmHandler {
             console.error('Conversion failed:', error);
             // Clean up on failure
             await fs.unlink(tempWebm).catch(() => {});
-            await fs.unlink(tempGif).catch(() => {});
+            await fs.unlink(cachedGif).catch(() => {}); // Remove partial GIF if exists
             throw error;
         }
     }
