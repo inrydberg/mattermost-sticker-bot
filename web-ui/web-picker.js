@@ -17,8 +17,13 @@ class WebPicker {
 
     setupRoutes() {
         // Serve static files
-        this.app.use(express.static('public'));
+        this.app.use(express.static(path.join(__dirname)));
         this.app.use(express.json());
+
+        // Serve index.html for root path
+        this.app.get('/', (req, res) => {
+            res.sendFile(path.join(__dirname, 'index.html'));
+        });
 
         // Proxy for TGS files to avoid CORS
         this.app.get('/proxy/tgs', async (req, res) => {

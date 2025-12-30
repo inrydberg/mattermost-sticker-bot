@@ -2,12 +2,12 @@
   "name": "mattermost-sticker-bot",
   "version": "1.0.0",
   "description": "A fun sticker bot for Mattermost",
-  "main": "stickerbot.js",
+  "main": "src/stickerbot.js",
   "scripts": {
-    "start": "node stickerbot.js",
-    "dev": "nodemon stickerbot.js"
+    "start": "node src/stickerbot.js",
+    "dev": "nodemon src/stickerbot.js"
   },
-  "author": "",
+  "author": "inrydberg",
   "license": "MIT",
   "dependencies": {
     "@lottiefiles/lottie-js": "^0.4.2",

@@ -6,7 +6,7 @@ const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
 const TelegramAPI = require('./telegram-api');
-const WebPicker = require('./web-picker');
+const WebPicker = require('../web-ui/web-picker');
 const GifConverter = require('./handler_webm');
 const TgsHandler = require('./handler_tgs');
 
