@@ -1,48 +1,103 @@
 # Mattermost Sticker Bot
 
-A powerful bot that brings Telegram animated stickers to your Mattermost channels! Features full support for animated TGS stickers with automatic GIF conversion.
+A powerful bot that brings Telegram stickers to your Mattermost channels! Features full support for both static images and animated WebM/TGS stickers with automatic GIF conversion.
+
+## Quickstart
+
+```bash
+# 1. Clone and enter directory
+git clone https://github.com/inrydberg/mattermost-sticker-bot
+cd mattermost-sticker-bot
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env with your tokens (see Configuration section)
+
+# 4. Run the bot
+npm start
+
+# 5. Test in Mattermost
+# Type: @stickerbot help
+```
+
+Bot will be running on port 3333 for web interface!
 
 ## Features
 
 - **Telegram Sticker Integration**: Access real Telegram sticker packs
 - **Animated Sticker Support**: Full TGS (Telegram animated sticker) to GIF conversion
+- **WebM Video Stickers**: Automatic conversion to GIF format
 - **Web Interface**: Interactive sticker picker at `http://localhost:3333`
 - **Real-time Updates**: WebSocket integration for instant sticker delivery
 - **Ephemeral Messages**: Commands don't clutter channels - bot messages appear only to you
+- **Automatic Cache Management**: Smart 100MB cache limit with auto-cleanup
 
 ## Prerequisites
 
-- Node.js 14+
-- Mattermost server (tested with 8.1+)
-- Telegram Bot Token (for fetching sticker packs)
+- **Node.js 14+** (18.x recommended)
+- **FFmpeg** (for WebM video sticker conversion)
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install ffmpeg
+
+  # macOS
+  brew install ffmpeg
+
+  # Windows
+  # Download from https://ffmpeg.org/download.html
+  ```
+- **Mattermost server** (tested with 8.1+)
+- **Telegram Bot Token** (any token will work - it's only used for fetching stickers)
 
 ## Installation
 
-1. **Clone the repository:**
+### 1. Clone the Repository
+
 ```bash
-git clone <repository-url>
+git clone https://github.com/inrydberg/mattermost-sticker-bot
 cd mattermost-sticker-bot
 ```
 
-2. **Install dependencies:**
+### 2. Install Dependencies
+
 ```bash
 npm install
 ```
 
-3. **Set up environment variables:**
+### 3. Get a Telegram Bot Token (2 minutes)
+
+**Important:** Any Telegram bot token will work - it's only used to fetch stickers, not to run an actual bot!
+
+1. Open Telegram and search for **@BotFather**
+2. Send `/newbot` to BotFather
+3. Choose any name (e.g., "MyStickers")
+4. Choose any username (e.g., "mystickers123_bot")
+5. Copy the token that BotFather gives you
+
+That's it! No webhook, no server, no additional configuration needed.
+
+### 4. Configuration
+
+Create your environment file:
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your tokens:
-```
+Edit `.env` with your tokens:
+```env
+# Mattermost Configuration
 MM_BOT_TOKEN=your_mattermost_bot_token_here
 MM_SERVER_URL=http://localhost:8065
 MM_WS_URL=ws://localhost:8065/api/v4/websocket
+
+# Telegram Bot Token (get from @BotFather)
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 ```
 
-## Mattermost Setup
+## Mattermost Bot Setup
 
 ### 1. Create a Bot Account
 
@@ -55,14 +110,15 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
    - **Description**: `Telegram Sticker Picker`
    - **Role**: `System Admin` (required for message deletion)
 5. Click **Create Bot Account**
-6. **COPY THE ACCESS TOKEN** and add it to your `.env` file
+6. **COPY THE ACCESS TOKEN** and add it to your `.env` file as `MM_BOT_TOKEN`
 
 ### 2. Add Bot to Channels
 
-1. Invite the bot to any channels where you want to use it
-2. The bot needs to be in the channel to respond to commands
+The bot must be invited to channels to respond to commands:
+1. Go to the channel where you want to use stickers
+2. Type `/invite @stickerbot`
 
-### 3. Fix Real-time Updates (Important!)
+### 3. Enable Real-time Updates (Docker Users)
 
 If stickers don't appear immediately, add this to your Mattermost `docker-compose.yml`:
 
@@ -71,119 +127,200 @@ environment:
   - MM_SERVICESETTINGS_ALLOWCORSFROM=*
 ```
 
-This enables WebSocket connections for real-time updates.
+Then restart Mattermost: `docker-compose down && docker-compose up -d`
 
 ## Running the Bot
 
+### Production
 ```bash
-# Using npm
 npm start
-
-# Or directly with Node
-node stickerbot.js
+# or
+node src/stickerbot.js
 ```
 
-The bot will connect to Mattermost and start the web picker on port 3333.
+### Development Mode (with auto-reload)
+```bash
+npm run dev
+```
+
+The bot will:
+- ✅ Connect to Mattermost WebSocket
+- ✅ Start web picker on http://localhost:3333
+- ✅ Initialize cache manager
+- ✅ Begin listening for commands
 
 ## Usage
 
-### Commands
+### Bot Commands
 
 In any channel with the bot:
 
-- `@stickerbot help` - Show help menu (ephemeral)
-- `@stickerbot ass` - Open the Adaptive Sticker Selector web interface (ephemeral)
+- **`@stickerbot help`** - Show help menu (only visible to you)
+- **`@stickerbot ass`** - Open **A**daptive **S**ticker **S**elector web interface
 
-### Web Interface
+### Using the Web Interface
 
-1. Use the `@stickerbot ass` command to get a personalized link
-2. Click the link to open the Telegram sticker picker
-3. Browse available sticker packs:
-   - **memezey** - Meme collection
-   - **pepetop** - Top Pepe stickers
+1. Type `@stickerbot ass` in any channel
+2. Click the generated link (only visible to you)
+3. Browse sticker packs:
+   - **memezey** - Popular meme stickers
+   - **pepetop** - Top Pepe collection
    - **HotCherry** - Cherry themed stickers
-4. Click any sticker to instantly send it to the channel
+4. Click any sticker to instantly send it to the channel!
 
 ### Features in Action
 
-- **Animated Stickers**: TGS files are automatically converted to GIFs for proper display
-- **WebM Support**: Video stickers are converted to GIFs
-- **Clean Chat**: User commands are automatically deleted to keep channels tidy
-- **Ephemeral Responses**: Bot help messages appear only to you
+- **Animated Stickers**: TGS files automatically convert to GIF
+- **Video Stickers**: WebM files convert to GIF using ffmpeg
+- **Clean Chat**: Bot commands are auto-deleted
+- **Private Responses**: Help messages only you can see
+- **Smart Cache**: Converted GIFs cached for instant reuse
 
 ## Architecture
 
 ### Components
 
-- **stickerbot.js** - Main bot handling Mattermost WebSocket and commands
-- **web-picker.js** - Express server for the web interface (port 3333)
-- **telegram-api.js** - Telegram API integration for fetching stickers
-- **handler_tgs.js** - TGS to GIF converter using lottie-converter
-- **handler_webm.js** - WebM to GIF converter
-- **file-upload.js** - Mattermost file upload utilities
+- **src/stickerbot.js** - Main bot handling Mattermost WebSocket and commands
+- **src/telegram-api.js** - Telegram API integration for fetching stickers
+- **src/handler_tgs.js** - TGS to GIF converter using lottie-converter
+- **src/handler_webm.js** - WebM to GIF converter using ffmpeg
+- **src/cache_manager.js** - Automatic cache size management (100MB limit)
+- **web-ui/web-picker.js** - Express server for the web interface (port 3333)
+- **web-ui/file-upload.js** - Mattermost file upload utilities
 
 ### Conversion Pipeline
 
-1. User selects sticker in web interface
-2. Bot fetches sticker from Telegram
-3. If animated (TGS/WebM), converts to GIF:
-   - TGS: Decompresses with pako → Converts with lottie-converter
-   - WebM: Extracts frames → Creates GIF
-4. Uploads GIF to Mattermost
-5. Sends as post in channel
-
-## Development
-
-### Running in Development Mode
-
-```bash
-npm run dev
-```
-
-Uses nodemon for auto-restart on file changes.
+1. User clicks sticker in web interface
+2. Bot fetches sticker from Telegram API
+3. Checks cache for existing GIF
+4. If not cached, converts to GIF:
+   - **TGS**: Decompress with pako → Convert with lottie-converter
+   - **WebM**: Extract frames with ffmpeg → Generate optimized GIF
+5. Saves to cache for future use
+6. Uploads GIF to Mattermost
+7. Posts in channel
 
 ### Project Structure
 
 ```
 mattermost-sticker-bot/
-├── stickerbot.js          # Main bot application
-├── web-picker.js          # Web interface server
-├── telegram-api.js        # Telegram API client
-├── handler_tgs.js         # TGS → GIF converter
-├── handler_webm.js        # WebM → GIF converter
-├── file-upload.js         # Mattermost file handling
-├── public/               # Web interface assets
-│   ├── index.html       # Sticker picker UI
-│   └── styles.css       # Picker styles
-├── gif-cache/           # Converted GIF cache
-├── tgs-cache/           # TGS file cache
-└── .env                 # Environment variables (git-ignored)
+├── src/                     # Source code
+│   ├── stickerbot.js       # Main bot application
+│   ├── telegram-api.js     # Telegram API client
+│   ├── handler_tgs.js      # TGS → GIF converter
+│   ├── handler_webm.js     # WebM → GIF converter
+│   └── cache_manager.js    # Automatic cache cleanup
+├── web-ui/                  # Web interface
+│   ├── web-picker.js       # Express server (port 3333)
+│   ├── file-upload.js      # Mattermost file handling
+│   ├── index.html          # Sticker picker UI
+│   └── styles.css          # Picker styles
+├── gif-cache/              # Converted GIF cache (auto-managed)
+├── temp/                   # Temporary files during conversion
+├── package.json            # Dependencies and scripts
+├── .env.example            # Environment template
+└── .env                    # Your configuration (git-ignored)
 ```
+
+### Cache Management
+
+The bot includes intelligent cache management:
+
+- **gif-cache/** - Stores converted GIF files
+  - Monitored every 5 minutes
+  - Automatically cleared when exceeding 100MB
+  - Preserves disk space while maintaining performance
+
+- **temp/** - Temporary conversion workspace
+  - Used during WebM/TGS processing
+  - Cleaned up after each conversion
 
 ## Troubleshooting
 
 ### Bot not responding?
-- Check if the bot is in the channel
-- Verify the bot token in `.env` is correct
-- Ensure bot has System Admin role for message deletion
+- ✅ Verify bot is in the channel (`/invite @stickerbot`)
+- ✅ Check bot token in `.env` is correct
+- ✅ Ensure bot has System Admin role
+- ✅ Check console for connection errors
 
 ### Stickers not appearing immediately?
-- Add `MM_SERVICESETTINGS_ALLOWCORSFROM=*` to Mattermost config
-- Check WebSocket connection in browser console
+- ✅ Add `MM_SERVICESETTINGS_ALLOWCORSFROM=*` to Mattermost config
+- ✅ Restart Mattermost after config change
+- ✅ Check browser console for WebSocket errors
 
-### Animated stickers showing as static images?
-- Verify lottie-converter is properly installed
-- Check gif-cache directory has write permissions
-- Look for conversion errors in console logs
+### Animated stickers showing as static?
+- ✅ Verify ffmpeg is installed: `ffmpeg -version`
+- ✅ Check lottie-converter installed: `npm ls lottie-converter`
+- ✅ Ensure gif-cache/ directory is writable
+- ✅ Look for conversion errors in console
 
-### Connection errors?
-- Verify Mattermost is accessible at the configured URL
-- Check firewall settings for ports 8065 (Mattermost) and 3333 (picker)
+### Web picker not loading?
+- ✅ Check port 3333 is not in use
+- ✅ Verify firewall allows port 3333
+- ✅ Try accessing directly: `http://localhost:3333`
 
-## Credits
+### Cache issues?
+- ✅ Check cache size: `du -sh gif-cache/`
+- ✅ Manual clear if needed: `rm -rf gif-cache/*`
+- ✅ Cache manager logs show cleanup status
 
-Built with love for the Mattermost community. Special thanks to the Telegram Bot API for providing access to their amazing sticker ecosystem.
+## Development
+
+### Running Tests
+```bash
+npm test
+```
+
+### Debug Mode
+```bash
+DEBUG=* npm start
+```
+
+### Adding New Sticker Packs
+
+Edit `web-ui/web-picker.js` line 60-66:
+```javascript
+res.json([
+    'memezey',
+    'pepetop',
+    'HotCherry',
+    'your_new_pack_here'  // Add your pack
+]);
+```
+
+## Dependencies
+
+### Core Dependencies
+- `express` - Web server for sticker picker
+- `ws` - WebSocket client for Mattermost
+- `axios` - HTTP client for APIs
+- `dotenv` - Environment configuration
+- `form-data` - File upload handling
+
+### Conversion Dependencies
+- `lottie-converter` - TGS to GIF conversion
+- `pako` - TGS decompression
+- `ffmpeg` (system) - WebM to GIF conversion
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
 
 ## License
 
-MIT
+MIT License - feel free to use in your own projects!
+
+## Credits
+
+Built with love for the Mattermost community. Special thanks to:
+- Telegram Bot API for sticker access
+- Mattermost team for the excellent platform
+- Contributors and testers
+
+---
+
+**Need help?** Open an issue or contact the maintainers!

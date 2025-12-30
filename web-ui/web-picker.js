@@ -3,11 +3,11 @@ const path = require('path');
 const { uploadFile, sendFileAsPost } = require('./file-upload');
 
 class WebPicker {
-    constructor(bot, telegram, port = 3333, gifConverter = null, tgsHandler = null) {
+    constructor(bot, telegram, port = 3333, webmHandler = null, tgsHandler = null) {
         this.bot = bot;
         this.telegram = telegram;
         this.port = port;
-        this.gifConverter = gifConverter;
+        this.webmHandler = webmHandler;
         this.tgsHandler = tgsHandler;
         this.app = express();
         this.sessions = new Map();
@@ -49,9 +49,9 @@ class WebPicker {
         });
 
         // Serve converted GIF files
-        if (this.gifConverter) {
+        if (this.webmHandler) {
             this.app.get('/gif/:filename', (req, res) => {
-                const gifPath = path.join(__dirname, 'gif-cache', req.params.filename);
+                const gifPath = path.join(__dirname, '..', 'gif-cache', req.params.filename);
                 res.sendFile(gifPath);
             });
         }
@@ -103,13 +103,13 @@ class WebPicker {
                 let gifFilePath = null;
 
                 // Convert WEBM or TGS to GIF if converter is available
-                if (this.gifConverter) {
+                if (this.webmHandler) {
                     try {
                         const baseUrl = `http://localhost:${this.port}`;
 
                         // Check if it's a WEBM file
                         if (sticker.includes('.webm')) {
-                            gifFilePath = await this.gifConverter.convertWebmToGif(sticker);
+                            gifFilePath = await this.webmHandler.convertWebmToGif(sticker);
                             console.log(`Converted WEBM to GIF: ${gifFilePath}`);
                         }
                         // Check if it's a TGS file

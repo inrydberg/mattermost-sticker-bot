@@ -4,10 +4,10 @@ const path = require('path');
 const crypto = require('crypto');
 const axios = require('axios');
 
-class GifConverter {
+class WebmHandler {
     constructor() {
-        this.cacheDir = path.join(__dirname, 'gif-cache');
-        this.tempDir = path.join(__dirname, 'temp');
+        this.cacheDir = path.join(__dirname, '..', 'gif-cache');
+        this.tempDir = path.join(__dirname, '..', 'temp');
         this.initDirs();
     }
 
@@ -115,4 +115,4 @@ class GifConverter {
     }
 }
 
-module.exports = GifConverter;
+module.exports = WebmHandler;

@@ -7,8 +7,8 @@ const converter = require('lottie-converter');
 
 class TgsHandler {
     constructor() {
-        this.cacheDir = path.join(__dirname, 'gif-cache');
-        this.tempDir = path.join(__dirname, 'temp');
+        this.cacheDir = path.join(__dirname, '..', 'gif-cache');
+        this.tempDir = path.join(__dirname, '..', 'temp');
         this.initDirs();
     }
 

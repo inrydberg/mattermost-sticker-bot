@@ -7,8 +7,9 @@ const fs = require('fs');
 const path = require('path');
 const TelegramAPI = require('./telegram-api');
 const WebPicker = require('../web-ui/web-picker');
-const GifConverter = require('./handler_webm');
+const WebmHandler = require('./handler_webm');
 const TgsHandler = require('./handler_tgs');
+const CacheManager = require('./cache_manager');
 
 class StickerBot {
     constructor(config) {
@@ -22,12 +23,16 @@ class StickerBot {
         this.telegram = new TelegramAPI(process.env.TELEGRAM_BOT_TOKEN);
 
         // Initialize converters
-        this.gifConverter = new GifConverter();
+        this.webmHandler = new WebmHandler();
         this.tgsHandler = new TgsHandler();
 
         // Initialize web picker with both handlers
-        this.webPicker = new WebPicker(this, this.telegram, 3333, this.gifConverter, this.tgsHandler);
+        this.webPicker = new WebPicker(this, this.telegram, 3333, this.webmHandler, this.tgsHandler);
         this.webPicker.start();
+
+        // Initialize and start cache manager
+        this.cacheManager = new CacheManager();
+        this.cacheManager.start();
     }
 
     async connect() {
@@ -237,6 +242,9 @@ process.on('SIGINT', () => {
     console.log('\nShutting down bot...');
     if (bot.ws) {
         bot.ws.close();
+    }
+    if (bot.cacheManager) {
+        bot.cacheManager.stop();
     }
     process.exit(0);
 });
