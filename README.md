@@ -28,10 +28,11 @@ Bot will be running on port 3333 for web interface!
 ## Features
 
 - **Telegram Sticker Integration**: Access real Telegram sticker packs
-- **Animated Sticker Support**: Full TGS (Telegram animated sticker) to GIF conversion
 - **WebM Video Stickers**: Automatic conversion to GIF format
+- **TGS Animated Stickers**: Lottie-based animations converted to GIF using lottie-converter
 - **Web Interface**: Interactive sticker picker at `http://localhost:3333`
 - **Real-time Updates**: WebSocket integration for instant sticker delivery
+- **User Attribution**: Bot mentions the user who sent each sticker for clarity
 - **Ephemeral Messages**: Commands don't clutter channels - bot messages appear only to you
 - **Automatic Cache Management**: Smart 100MB cache limit with auto-cleanup
 

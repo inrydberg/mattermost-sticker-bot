@@ -140,7 +140,11 @@ class StickerBot {
         }
 
         if (parts[0] === 'ass') {
-            const pickerUrl = await this.webPicker.generatePickerLink(post.channel_id, post.user_id);
+            // Get username for the picker session
+            const userInfo = await this.getUserInfo(post.user_id);
+            const username = userInfo ? userInfo.username : post.user_id;
+
+            const pickerUrl = await this.webPicker.generatePickerLink(post.channel_id, post.user_id, username);
             const response = `🎨 **Adaptive Sticker Selector (ASS)**\n\n[**Open ASS Interface**](${pickerUrl})\n\n_Advanced sticker technology at your fingertips!_`;
 
             await this.sendEphemeralPost(post.user_id, post.channel_id, response);
@@ -189,6 +193,25 @@ class StickerBot {
         } catch (error) {
             console.error('Failed to send ephemeral message:', error.response?.data || error.message);
         }
+    }
+
+    async getUserInfo(userId) {
+        try {
+            console.log(`Fetching user info for: ${userId}`);
+            const response = await axios.get(`${this.serverUrl}/api/v4/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.botToken}`
+                }
+            });
+
+            if (response.status === 200) {
+                console.log(`Got user info: ${response.data.username}`);
+                return response.data;
+            }
+        } catch (error) {
+            console.error('Failed to get user info:', error.response?.data || error.message);
+        }
+        return null;
     }
 
     async sendHelpMessageEphemeral(userId, channelId) {

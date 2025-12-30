@@ -133,13 +133,13 @@ class WebPicker {
                                 `sticker_${packName}_${stickerIndex}.gif`
                             );
 
-                            // Send the uploaded file as a post
+                            // Send the uploaded file as a post with user mention
                             await sendFileAsPost(
                                 this.bot.serverUrl,
                                 this.bot.botToken,
                                 session.channelId,
                                 fileInfo,
-                                ''
+                                `@${session.username}\n`
                             );
 
                             console.log(`Uploaded and sent animated GIF: ${packName}_${stickerIndex}`);
@@ -151,8 +151,8 @@ class WebPicker {
                     }
                 }
 
-                // For static images, send as markdown image
-                await this.bot.sendMessage(session.channelId, `![sticker](${sticker})`);
+                // For static images, send as markdown image with user mention
+                await this.bot.sendMessage(session.channelId, `@${session.username}\n![sticker](${sticker})`);
                 res.json({ success: true });
             } else {
                 res.status(400).json({ error: 'Failed to send sticker' });
@@ -167,6 +167,7 @@ class WebPicker {
             this.sessions.set(sessionId, {
                 channelId,
                 userId,
+                username: userId, // fallback, should be overridden by generatePickerLink
                 created: Date.now()
             });
 
@@ -187,16 +188,18 @@ class WebPicker {
         });
     }
 
-    async generatePickerLink(channelId, userId) {
+    async generatePickerLink(channelId, userId, username) {
         // Create a session
         const sessionId = Math.random().toString(36).substring(7);
 
         this.sessions.set(sessionId, {
             channelId,
             userId,
+            username: username || userId, // fallback to userId if username not provided
             created: Date.now()
         });
 
+        console.log(`Generated picker link for user: ${username || userId} (${userId})`);
         return `http://localhost:${this.port}/?session=${sessionId}`;
     }
 }
