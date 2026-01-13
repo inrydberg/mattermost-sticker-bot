@@ -302,7 +302,7 @@ class WebPicker {
 
         console.log(`Generated picker link for user: ${username || userId} (${userId})`);
         const domain = process.env.DOMAIN || 'http://localhost';
-        return `${domain}:${this.port}/?session=${sessionId}`;
+        return `${domain}/?session=${sessionId}`;
     }
 }
 
