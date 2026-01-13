@@ -283,7 +283,7 @@ class WebPicker {
     }
 
     start() {
-        const host = process.env.ASS_HOST || '0.0.0.0';
+        const host = process.env.UI_HOST || '0.0.0.0';
         this.app.listen(this.port, host, () => {
             console.log(`🌐 Web picker running on http://${host}:${this.port}`);
         });

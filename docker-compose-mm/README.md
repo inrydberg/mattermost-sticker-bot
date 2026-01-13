@@ -34,7 +34,7 @@ This folder contains a complete Docker Compose setup with both Mattermost server
 5. **Test the bot**:
    - Invite the bot to a channel: `/invite @stickerbot`
    - Type: `@stickerbot help`
-   - Try: `@stickerbot ass`
+   - Try: `@stickerbot s`
 
 ## What's Included
 
@@ -88,6 +88,7 @@ docker-compose down -v
 ## Troubleshooting
 
 - **Mattermost not starting**: Wait for database to fully initialize
-- **Bot not connecting**: Ensure bot token is set in `../.env`
+- **Bot restarting initially**: Normal behavior - the bot will restart a few times until Mattermost is fully ready (has `restart: unless-stopped`)
+- **Bot not connecting after 30 seconds**: Ensure bot token is set in `../.env`
 - **Stickers not working**: Check Telegram bot token
 - **Check logs**: `docker-compose logs sticker-bot`

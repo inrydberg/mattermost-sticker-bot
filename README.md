@@ -40,7 +40,7 @@ Bot will be running on port 3333 for web interface!
 - **Telegram Sticker Integration**: Access real Telegram sticker packs
 - **WebM Video Stickers**: Automatic conversion to GIF format
 - **TGS Animated Stickers**: Lottie-based animations converted to GIF using lottie-converter
-- **Web Interface**: Interactive sticker picker (configurable via ASS_PORT)
+- **Web Interface**: Interactive sticker picker (configurable via UI_PORT, defaults to port 3333)
 - **Real-time Updates**: WebSocket integration for instant sticker delivery
 - **User Attribution**: Bot mentions the user who sent each sticker for clarity
 - **Custom Sticker Packs**: Add your own Telegram sticker packs via the web interface
@@ -106,19 +106,20 @@ Edit `.env` with your tokens:
 DOMAIN=http://localhost
 WS_DOMAIN=ws://localhost
 MM_PORT=8065
-ASS_PORT=3333
-ASS_HOST=0.0.0.0
+UI_PORT=3333
+UI_HOST=0.0.0.0
 
 # Bot Tokens
 MM_BOT_TOKEN=your_mattermost_bot_token_here
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
-# Mattermost Bot Configuration (auto-filled from server configuration)
-MM_SERVER_URL=http://localhost:8065
-MM_WS_URL=ws://localhost:8065/api/v4/websocket
+# Mattermost Bot Configuration
+# For running locally with 'npm start' (outside Docker)
+MM_SERVER_URL_LOCAL=http://localhost:8065
+MM_WS_URL_LOCAL=ws://localhost:8065/api/v4/websocket
 ```
 
-**Note:** dotenv doesn't support variable substitution (e.g., `${DOMAIN}:${MM_PORT}`), so the Mattermost URLs must be hardcoded. This is a one-time setup - adjust the URLs to match your server configuration.
+**IMPORTANT:** The `dotenv` npm package does NOT support variable substitution (e.g., `${DOMAIN}:${MM_PORT}` will NOT work). The URLs must be explicitly hardcoded. This is a limitation of the dotenv package, not the bot. Adjust these URLs to match your actual server configuration.
 
 ## Mattermost Bot Setup
 
@@ -168,7 +169,7 @@ npm run dev
 
 The bot will:
 - ✅ Connect to Mattermost WebSocket
-- ✅ Start web picker on configured ASS_PORT (default 3333)
+- ✅ Start web picker on configured port (default 3333)
 - ✅ Initialize cache manager
 - ✅ Begin listening for commands
 
@@ -179,11 +180,11 @@ The bot will:
 In any channel with the bot:
 
 - **`@stickerbot help`** - Show help menu (only visible to you)
-- **`@stickerbot ass`** - Open **A**daptive **S**ticker **S**elector web interface
+- **`@stickerbot s`** - Open Sticker Selector web interface
 
 ### Using the Web Interface
 
-1. Type `@stickerbot ass` in any channel
+1. Type `@stickerbot s` in any channel
 2. Click the generated link (only visible to you)
 3. Browse sticker packs:
    - **memezey** - Popular meme stickers
@@ -280,7 +281,7 @@ The bot includes intelligent cache management:
 ### Web picker not loading?
 - ✅ Check port 3333 is not in use
 - ✅ Verify firewall allows port 3333
-- ✅ Try accessing directly at configured domain and ASS_PORT
+- ✅ Try accessing directly at configured domain and port (default 3333)
 
 ### Cache issues?
 - ✅ Check cache size: `du -sh gif-cache/`
@@ -303,7 +304,7 @@ DEBUG=* npm start
 
 You can easily add your own Telegram sticker packs through the web interface:
 
-1. **Open the sticker picker** with `@stickerbot ass`
+1. **Open the sticker picker** with `@stickerbot s`
 2. **Click "+ Add Sticker Pack"** (top-right corner)
 3. **Enter pack details:**
    - **Pack Name**: A friendly name (e.g., "My Favorites")

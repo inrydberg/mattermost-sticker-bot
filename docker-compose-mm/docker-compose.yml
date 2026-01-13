@@ -38,7 +38,7 @@ services:
     env_file:
       - ../.env
     environment:
-      # Override for internal docker networking
+      # Override with Docker network URLs (mattermost is the service name)
       - MM_SERVER_URL=http://mattermost:8065
       - MM_WS_URL=ws://mattermost:8065/api/v4/websocket
 

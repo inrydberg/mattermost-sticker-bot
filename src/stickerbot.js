@@ -29,7 +29,7 @@ class StickerBot {
         this.tgsHandler = new TgsHandler();
 
         // Initialize web picker with both handlers
-        this.webPicker = new WebPicker(this, this.telegram, process.env.ASS_PORT || 3333, this.webmHandler, this.tgsHandler);
+        this.webPicker = new WebPicker(this, this.telegram, process.env.UI_PORT || 3333, this.webmHandler, this.tgsHandler);
         this.webPicker.start();
 
         // Initialize and start cache manager
@@ -106,7 +106,11 @@ class StickerBot {
 
         // Only respond to mentions
         const botMention = `<@${this.botId}>`;
-        if (!message.includes(botMention.toLowerCase()) && !message.includes('@stickerbot')) {
+        // Check for actual @mention (with word boundary) not just the string anywhere
+        const hasBotMention = message.includes(botMention.toLowerCase()) ||
+                             /(?:^|\s)@stickerbot(?:\s|$)/.test(message);
+
+        if (!hasBotMention) {
             return; // Ignore messages that don't mention the bot
         }
 
@@ -135,26 +139,26 @@ class StickerBot {
 
         const parts = cleanMessage.split(' ').filter(p => p);
 
-        // Only handle 'help' and 'ass' commands
+        // Only handle 'help' and 's' commands
         if (parts.length === 0 || parts[0] === 'help') {
             await this.sendHelpMessageEphemeral(post.user_id, post.channel_id);
             return;
         }
 
-        if (parts[0] === 'ass') {
+        if (parts[0] === 's') {
             // Get username for the picker session
             const userInfo = await this.getUserInfo(post.user_id);
             const username = userInfo ? userInfo.username : post.user_id;
 
             const pickerUrl = await this.webPicker.generatePickerLink(post.channel_id, post.user_id, username);
-            const response = `🎨 **Adaptive Sticker Selector (ASS)**\n\n[**Open ASS Interface**](${pickerUrl})\n\n_Advanced sticker technology at your fingertips!_`;
+            const response = `🎨 **Sticker Selector**\n\n[**Open Sticker Interface**](${pickerUrl})\n\n_Select and send stickers instantly!_`;
 
             await this.sendEphemeralPost(post.user_id, post.channel_id, response);
             return;
         }
 
         // Unknown command
-        await this.sendMessage(post.channel_id, `❌ Unknown command. Try \`@stickerbot help\``);
+        await this.sendEphemeralPost(post.user_id, post.channel_id, `❌ Unknown command. Try \`@stickerbot help\``);
     }
 
     async sendMessage(channelId, message) {
@@ -222,7 +226,7 @@ class StickerBot {
 
 **Commands:**
 • \`@stickerbot help\` - Show this help menu
-• \`@stickerbot ass\` - Open Adaptive Sticker Selector (ASS)
+• \`@stickerbot s\` - Open Sticker Selector
 
 _💡 Click stickers in the picker to send them instantly!_
         `;
@@ -232,9 +236,10 @@ _💡 Click stickers in the picker to send them instantly!_
 }
 
 // Configuration
+// Docker sets MM_SERVER_URL directly, local runs use MM_SERVER_URL_LOCAL
 const config = {
-    serverUrl: process.env.MM_SERVER_URL || 'http://localhost:8065',
-    wsUrl: process.env.MM_WS_URL || 'ws://localhost:8065/api/v4/websocket',
+    serverUrl: process.env.MM_SERVER_URL || process.env.MM_SERVER_URL_LOCAL || 'http://localhost:8065',
+    wsUrl: process.env.MM_WS_URL || process.env.MM_WS_URL_LOCAL || 'ws://localhost:8065/api/v4/websocket',
     botToken: process.env.MM_BOT_TOKEN
 };
 
