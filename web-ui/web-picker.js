@@ -291,7 +291,8 @@ class WebPicker {
 
     async generatePickerLink(channelId, userId, username) {
         // Create a session
-        const sessionId = Math.random().toString(36).substring(7);
+//      const sessionId = Math.random().toString(36).substring(7);
+        const sessionId = Math.random().toString(36).slice(2, 12).padEnd(10, '0'); // 10 символов
 
         this.sessions.set(sessionId, {
             channelId,
