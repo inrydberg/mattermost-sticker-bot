@@ -6,19 +6,25 @@ server {
     ssl_certificate_key /etc/nginx/ssl/example.key;
 
     location / {
-
         # Разрешаем если:
         # 1. Есть параметр session
         # 2. ИЛИ если Referer содержит session (для ресурсов)
         set $allow_access 0;
 
-        if ($arg_session != "") {
+        # Проверяем параметр session в запросе (10 символов после =)
+        # Проверяем что это 10 символов и НЕ запрещенные паттерны
+        if ($arg_session ~* "^[a-zA-Z0-9]{10}$") {
             set $allow_access 1;
         }
 
-        # Проверяем Referer - если он содержит session параметр
-        if ($http_referer ~* "session=") {
+        # Проверяем Referer - если он содержит session параметр с 10 символами
+        if ($http_referer ~* "session=[a-zA-Z0-9]{10}") {
             set $allow_access 1;
+        }
+
+        # ОТКЛЮЧАЕМ доступ если session запрещенный (10 одинаковых символов: aaaaaa, 1111111111, ------) (10 цифр подряд: 123456890, 0987654321)
+        if ($arg_session ~* "^(.)\1{5}$|^[0-9]{10}$") {
+            set $allow_access 0;
         }
 
         if ($allow_access = 0) {
