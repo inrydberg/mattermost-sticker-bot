@@ -351,7 +351,7 @@ These sticker packs are included by default and ready to use immediately.
 
 ## License
 
-MIT License - feel free to use in your own projects!
+MIT License (Non-Commercial) - feel free to use in your own projects!
 
 ## Credits
 
