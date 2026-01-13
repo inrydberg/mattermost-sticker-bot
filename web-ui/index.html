@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Telegram Sticker Picker</title>
-    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="lottie-player.js"></script>
+    <script src="lottie.min.js"></script>
+    <script src="pako.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -474,7 +474,7 @@
                         // Log what we're receiving for debugging
                         if (index === 0) {
                             console.log('First sticker data:', {
-                                url: url,
+                        //      url: url,
                                 isAnimated: sticker.isAnimated,
                                 isVideo: sticker.isVideo,
                                 thumbnailUrl: sticker.thumbnailUrl
