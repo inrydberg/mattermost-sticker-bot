@@ -1,4 +1,5 @@
 const axios = require('axios');
+const crypto = require('crypto');
 
 class TelegramAPI {
     constructor(botToken) {
@@ -7,6 +8,19 @@ class TelegramAPI {
         this.baseUrl = `https://api.telegram.org/bot${this.botToken}`;
         this.fileUrl = `https://api.telegram.org/file/bot${this.botToken}`;
         this.stickerCache = new Map();
+        this.urlMap = new Map(); // hash -> real URL (token never leaves server)
+    }
+
+    // Generate hash and store URL mapping
+    hashUrl(url) {
+        const hash = crypto.createHash('md5').update(url).digest('hex').substring(0, 16);
+        this.urlMap.set(hash, url);
+        return hash;
+    }
+
+    // Get real URL from hash
+    getUrlFromHash(hash) {
+        return this.urlMap.get(hash);
     }
 
     async getStickerSet(setName) {
@@ -78,7 +92,7 @@ class TelegramAPI {
         return await this.getFileUrl(fileId);
     }
 
-    async getAllStickerUrls(setName) {
+    async getAllStickerUrls(setName, useProxy = false) {
         const stickerSet = await this.getStickerSet(setName);
         if (!stickerSet || !stickerSet.stickers) {
             return [];
@@ -90,9 +104,13 @@ class TelegramAPI {
             const url = await this.getFileUrl(sticker.file_id);
 
             if (url) {
+                // Use proxy URL with hash - token never leaves server
+                const hash = this.hashUrl(url);
+                const displayUrl = useProxy ? `/proxy/sticker?id=${hash}` : url;
+
                 return {
-                    url: url,
-                    thumbnailUrl: null, // NO THUMBNAILS!
+                    url: displayUrl,
+                    realUrl: url,
                     emoji: sticker.emoji,
                     isAnimated: sticker.is_animated,
                     isVideo: sticker.is_video,

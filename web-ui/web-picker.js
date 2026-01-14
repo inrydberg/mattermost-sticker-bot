@@ -27,11 +27,16 @@ class WebPicker {
             res.sendFile(path.join(__dirname, 'index.html'));
         });
 
-        // Proxy for TGS files to avoid CORS
-        this.app.get('/proxy/tgs', async (req, res) => {
-            const url = req.query.url;
+        // Proxy for sticker files - hash lookup, token never exposed
+        this.app.get('/proxy/sticker', async (req, res) => {
+            const hash = req.query.id;
+            if (!hash) {
+                return res.status(400).send('Missing id parameter');
+            }
+
+            const url = this.telegram.getUrlFromHash(hash);
             if (!url) {
-                return res.status(400).send('Missing URL parameter');
+                return res.status(404).send('Sticker not found');
             }
 
             try {
@@ -42,11 +47,19 @@ class WebPicker {
                     responseType: 'arraybuffer'
                 });
 
-                res.set('Content-Type', 'application/octet-stream');
+                // Set appropriate content type based on URL
+                let contentType = 'application/octet-stream';
+                if (url.includes('.webp')) contentType = 'image/webp';
+                else if (url.includes('.png')) contentType = 'image/png';
+                else if (url.includes('.webm')) contentType = 'video/webm';
+                else if (url.includes('.tgs')) contentType = 'application/octet-stream';
+
+                res.set('Content-Type', contentType);
+                res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24h
                 res.send(response.data);
             } catch (error) {
-                console.error('TGS proxy error:', error.message);
-                res.status(500).send('Failed to fetch TGS file');
+                console.error('Sticker proxy error:', error.message);
+                res.status(500).send('Failed to fetch sticker');
             }
         });
 
@@ -83,14 +96,20 @@ class WebPicker {
                 telegramPackName = customPack.telegramName;
             }
 
-            const stickers = await this.telegram.getAllStickerUrls(telegramPackName);
+            const stickers = await this.telegram.getAllStickerUrls(telegramPackName, true); // useProxy=true
 
             // Cache the result
             if (stickers.length > 0) {
                 this.stickerCache.set(packName, stickers);
             }
 
-            res.json(stickers);
+            // Return only safe fields (no realUrl with token)
+            res.json(stickers.map(s => ({
+                url: s.url,
+                emoji: s.emoji,
+                isAnimated: s.isAnimated,
+                isVideo: s.isVideo
+            })));
         });
 
         // Send sticker to channel

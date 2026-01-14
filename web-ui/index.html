@@ -602,7 +602,7 @@
                         div.className = 'sticker-item';
                         div.onclick = () => sendSticker(index);
 
-                        // Check sticker type based on URL extension
+                        // Check sticker type based on flags (URLs are proxied now)
                         const url = sticker.url;
 
                         // Log what we're receiving for debugging
@@ -610,12 +610,11 @@
                             console.log('First sticker data:', {
                                 url: url,
                                 isAnimated: sticker.isAnimated,
-                                isVideo: sticker.isVideo,
-                                thumbnailUrl: sticker.thumbnailUrl
+                                isVideo: sticker.isVideo
                             });
                         }
 
-                        if (sticker.isAnimated && url.includes('.tgs')) {
+                        if (sticker.isAnimated && !sticker.isVideo) {
                             // TGS animated sticker - render with Lottie
                             const container = document.createElement('div');
                             container.style.cssText = 'width: 100%; height: 100%; position: relative;';
@@ -627,11 +626,8 @@
                             badge.textContent = 'TGS';
                             div.appendChild(badge);
 
-                            // Use proxy to avoid CORS issues
-                            const proxyUrl = `/proxy/tgs?url=${encodeURIComponent(url)}`;
-
-                            // Download and decompress TGS file, then render with Lottie
-                            fetch(proxyUrl)
+                            // URL is already proxied, fetch directly
+                            fetch(url)
                                 .then(response => response.arrayBuffer())
                                 .then(buffer => {
                                     // Decompress TGS (gzipped Lottie JSON)
@@ -657,7 +653,7 @@
                                     console.error('Failed to load TGS:', err);
                                     container.innerHTML = '<div style="text-align: center; font-size: 10px; color: #667eea; padding: 10px;">Failed to<br>load TGS</div>';
                                 });
-                        } else if (url.includes('.webm')) {
+                        } else if (sticker.isVideo) {
                             // WEBM video sticker
                             const video = document.createElement('video');
                             video.src = url;
@@ -675,8 +671,8 @@
                             badge.style.cssText = 'position: absolute; top: 2px; right: 2px; background: rgba(102, 126, 234, 0.9); color: white; padding: 2px 5px; border-radius: 10px; font-size: 10px; font-weight: bold;';
                             badge.textContent = 'WEBM';
                             div.appendChild(badge);
-                        } else if (!url.includes('.tgs')) {
-                            // Regular static sticker only (NOT TGS)
+                        } else {
+                            // Regular static sticker
                             const img = document.createElement('img');
                             img.src = url;
                             img.alt = sticker.emoji || 'Sticker';
@@ -713,7 +709,7 @@
 
             // ALWAYS show converting/sending message immediately when sticker is clicked
             const sticker = currentStickers[index];
-            const isAnimated = sticker && (sticker.isVideo || sticker.url.includes('.webm') || sticker.isAnimated);
+            const isAnimated = sticker && (sticker.isVideo || sticker.isAnimated);
 
             if (isAnimated) {
                 toast.textContent = '⏳ Converting to GIF...';
