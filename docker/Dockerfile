@@ -17,9 +17,9 @@ RUN npm install
 COPY src/ ./src/
 COPY web-ui/ ./web-ui/
 
-# Create directories for cache and temp files
-RUN mkdir -p gif-cache temp custom-packs && \
-    echo '[]' > /app/custom-packs.json
+# Create directories for cache, temp, and data files
+RUN mkdir -p gif-cache temp data && \
+    echo '[]' > /app/data/custom-packs.json
 
 # Expose the web interface port
 EXPOSE 3333

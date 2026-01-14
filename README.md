@@ -29,8 +29,11 @@ cp .env.example .env
 # 4. Run the bot
 npm start &
 
-# 5. Test in Mattermost
-# Type: @stickerbot help
+# 5. Setup slash command in Mattermost Admin Panel
+# (See "Setup Slash Command" section below)
+
+# 6. Test in Mattermost
+# Type: /sticker
 ```
 
 Bot will be running on port 3333 for web interface!
@@ -42,8 +45,10 @@ Bot will be running on port 3333 for web interface!
 - **TGS Animated Stickers**: Lottie-based animations converted to GIF using lottie-converter
 - **Web Interface**: Interactive sticker picker (configurable via UI_PORT, defaults to port 3333)
 - **Real-time Updates**: WebSocket integration for instant sticker delivery
-- **User Attribution**: Bot mentions the user who sent each sticker for clarity
+- **Thread Support**: Stickers sent from threads stay in threads (via slash commands)
+- **User Attribution**: @mentions mode shows who sent each sticker
 - **Custom Sticker Packs**: Add your own Telegram sticker packs via the web interface
+- **Delete Mode**: Remove custom packs with token-protected delete mode (🗑️ button)
 - **Ephemeral Messages**: Commands don't clutter channels - bot messages appear only to you
 - **Automatic Cache Management**: Smart 100MB cache limit with auto-cleanup
 
@@ -102,24 +107,21 @@ cp .env.example .env
 
 Edit `.env` with your tokens:
 ```env
-# Server Configuration
-DOMAIN=http://localhost
-WS_DOMAIN=ws://localhost
-MM_PORT=8065
-UI_PORT=3333
-UI_HOST=0.0.0.0
+# Mattermost Server
+MM_SERVER_URL=https://your-mattermost-server.com
+MM_WS_URL=wss://your-mattermost-server.com/api/v4/websocket
 
 # Bot Tokens
 MM_BOT_TOKEN=your_mattermost_bot_token_here
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
-# Mattermost Bot Configuration
-# For running locally with 'npm start' (outside Docker)
-MM_SERVER_URL_LOCAL=http://localhost:8065
-MM_WS_URL_LOCAL=ws://localhost:8065/api/v4/websocket
+# Web Picker Configuration
+DOMAIN=http://your-sticker-bot-domain.com
+UI_PORT=3333
+UI_HOST=0.0.0.0
 ```
 
-**IMPORTANT:** The `dotenv` npm package does NOT support variable substitution (e.g., `${DOMAIN}:${MM_PORT}` will NOT work). The URLs must be explicitly hardcoded. This is a limitation of the dotenv package, not the bot. Adjust these URLs to match your actual server configuration.
+See `.env.example` for both local development and remote deployment options.
 
 ## Mattermost Bot Setup
 
@@ -142,7 +144,31 @@ The bot must be invited to channels to respond to commands:
 1. Go to the channel where you want to use stickers
 2. Type `/invite @stickerbot`
 
-### 3. Enable Real-time Updates (Docker Users)
+### 3. Setup Slash Command (Recommended)
+
+To enable the `/sticker` command that works everywhere:
+
+1. Log into Mattermost as an admin
+2. Go to **Main Menu** → **Integrations** → **Slash Commands**
+3. Click **Add Slash Command**
+4. Configure with these settings:
+
+| Field | Value |
+|-------|-------|
+| Title | Sticker Bot |
+| Description | Send Telegram stickers |
+| Command Trigger Word | `sticker` |
+| Request URL | `http://YOUR_DOMAIN:3333/api/slash` |
+| Request Method | POST |
+| Response Username | sticker-bot |
+| Autocomplete | ON |
+
+5. Click **Save**
+6. Copy the generated token (for verification if needed)
+
+**Note:** Replace `YOUR_DOMAIN` with your actual server domain/IP where the bot is running.
+
+### 4. Enable Real-time Updates (Docker Users)
 
 If stickers don't appear immediately, add this to your Mattermost `docker-compose.yml`:
 
@@ -175,16 +201,41 @@ The bot will:
 
 ## Usage
 
-### Bot Commands
+The bot supports **two modes** of operation:
 
-In any channel with the bot:
+### Mode 1: Slash Commands (Recommended)
+
+Works **everywhere** - channels, DMs, group messages, threads!
+
+- **`/sticker`** - Open Sticker Selector web interface
+
+This is the recommended mode as it works in any context without needing to invite the bot.
+
+**Response format:**
+```
+YourUsername BOT  12:34 PM
+sticker
+```
+
+### Mode 2: @Mentions
+
+Works only in **bot DMs** or **channels where the bot was explicitly invited**.
 
 - **`@stickerbot help`** - Show help menu (only visible to you)
 - **`@stickerbot s`** - Open Sticker Selector web interface
 
+To use this mode, you must first invite the bot to the channel: `/invite @stickerbot`
+
+**Response format:**
+```
+sticker-bot BOT  12:34 PM
+@YourUsername
+sticker
+```
+
 ### Using the Web Interface
 
-1. Type `@stickerbot s` in any channel
+1. Type `/sticker` (or `@stickerbot s` in invited channels)
 2. Click the generated link (only visible to you)
 3. Browse sticker packs:
    - **memezey** - Popular meme stickers
@@ -239,6 +290,12 @@ mattermost-sticker-bot/
 │   ├── file-upload.js      # Mattermost file handling
 │   ├── index.html          # Sticker picker UI
 │   └── styles.css          # Picker styles
+├── docker/                  # Docker configuration
+│   └── Dockerfile          # Container build instructions
+├── docker-compose-mm/       # Full stack (Mattermost + Bot)
+│   └── docker-compose.yml  # Local development setup
+├── data/                    # Persistent data (Docker volume)
+│   └── custom-packs.json   # User-added sticker packs
 ├── gif-cache/              # Converted GIF cache (auto-managed)
 ├── temp/                   # Temporary files during conversion
 ├── package.json            # Dependencies and scripts
@@ -304,7 +361,7 @@ DEBUG=* npm start
 
 You can easily add your own Telegram sticker packs through the web interface:
 
-1. **Open the sticker picker** with `@stickerbot s`
+1. **Open the sticker picker** with `/sticker` or `@stickerbot s`
 2. **Click "+ Add Sticker Pack"** (top-right corner)
 3. **Enter pack details:**
    - **Pack Name**: A friendly name (e.g., "My Favorites")
@@ -316,7 +373,19 @@ You can easily add your own Telegram sticker packs through the web interface:
 - Share the pack to get a link like `https://t.me/addstickers/PackName`
 - Use that URL in the bot
 
-Custom packs are stored locally and persist between restarts.
+Custom packs are stored in `data/custom-packs.json` and persist between restarts (via Docker volume).
+
+### Deleting Custom Sticker Packs
+
+To remove custom packs you no longer want:
+
+1. **Click the 🗑️ button** (top-right, light red)
+2. **Enter your MM_BOT_TOKEN** when prompted
+3. **Delete mode activates** - background turns red, custom packs show trash icons
+4. **Click any custom pack** to delete it (default packs cannot be deleted)
+5. **Click "← Exit Delete Mode"** to return to normal mode
+
+This token protection prevents accidental deletions.
 
 ## Default Sticker Packs
 
@@ -340,6 +409,40 @@ These sticker packs are included by default and ready to use immediately.
 - `lottie-converter` - TGS to GIF conversion
 - `pako` - TGS decompression
 - `ffmpeg` (system) - WebM to GIF conversion
+
+## Changelog
+
+### v1.1.0 - Slash Commands, Thread Support & Delete Mode
+
+**New Features:**
+- **Slash Command Support** (`/sticker`) - Works everywhere: channels, DMs, group messages, threads
+- **Thread Support** - Stickers sent from threads now stay in threads (via slash commands)
+- **Dual Operation Modes** - Choose between slash commands (recommended) or @mentions
+- **Delete Mode** - Token-protected UI for removing custom sticker packs
+- **Persistent Data Volume** - Custom packs stored in `/app/data/` with Docker volume support
+
+**Improvements:**
+- Added `/api/slash` endpoint for Mattermost slash command integration
+- Sessions now store `responseUrl` for proper slash command responses
+- Sessions now store `rootId` for thread context preservation
+- Bot mention detection improved to handle both `@stickerbot` and `@sticker-bot` usernames
+- Added `express.urlencoded()` middleware for slash command POST parsing
+- `sendMessage()` and `sendFileAsPost()` now support `rootId` parameter for threads
+- Enhanced logging for WebSocket events and message processing
+- Added 🗑️ delete button to web picker UI
+- Token verification via `MM_BOT_TOKEN` for delete mode access
+- Visual delete mode with red theme and trash icons on deletable packs
+- Default packs protected from deletion
+- Updated `.env.example` with local and remote deployment options
+
+**Technical Changes:**
+- `web-picker.js`: Added slash command handler, delete mode endpoints (`/api/verify-token`, `/api/delete-pack`, `/api/custom-packs`)
+- `stickerbot.js`: Improved mention detection regex, added rootId to picker links
+- `file-upload.js`: Added rootId parameter for thread-aware file posts
+- `index.html`: Delete mode UI with token modal and visual feedback
+- `Dockerfile`: Creates `/app/data/custom-packs.json` for volume initialization
+- `docker-compose.yml`: Uses named volume `bot_data:/app/data` for persistence
+- GIFs via slash commands use Mattermost file URLs for proper rendering
 
 ## Contributing
 

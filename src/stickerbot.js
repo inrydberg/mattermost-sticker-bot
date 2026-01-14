@@ -79,6 +79,7 @@ class StickerBot {
 
         this.ws.on('message', async (data) => {
             const message = JSON.parse(data);
+            console.log('WS event:', message.event || 'no-event', message.data?.post ? 'has-post' : '');
 
             if (message.event === 'posted') {
                 const post = JSON.parse(message.data.post);
@@ -103,14 +104,18 @@ class StickerBot {
 
     async handleMessage(post) {
         const message = post.message.toLowerCase().trim();
+        console.log('Processing message:', message, 'root_id:', post.root_id || 'none');
 
         // Only respond to mentions
         const botMention = `<@${this.botId}>`;
+        console.log('Looking for botMention:', botMention);
         // Check for actual @mention (with word boundary) not just the string anywhere
         const hasBotMention = message.includes(botMention.toLowerCase()) ||
+                             /(?:^|\s)@sticker-bot(?:\s|$)/.test(message) ||
                              /(?:^|\s)@stickerbot(?:\s|$)/.test(message);
 
         if (!hasBotMention) {
+            console.log('No bot mention found, ignoring');
             return; // Ignore messages that don't mention the bot
         }
 
@@ -134,6 +139,7 @@ class StickerBot {
         // Remove bot mention to get the command
         const cleanMessage = message
             .replace(botMention.toLowerCase(), '')
+            .replace('@sticker-bot', '')
             .replace('@stickerbot', '')
             .trim();
 
@@ -150,7 +156,7 @@ class StickerBot {
             const userInfo = await this.getUserInfo(post.user_id);
             const username = userInfo ? userInfo.username : post.user_id;
 
-            const pickerUrl = await this.webPicker.generatePickerLink(post.channel_id, post.user_id, username);
+            const pickerUrl = await this.webPicker.generatePickerLink(post.channel_id, post.user_id, username, post.root_id);
             const response = `🎨 **Sticker Selector**\n\n[**Open Sticker Interface**](${pickerUrl})\n\n_Select and send stickers instantly!_`;
 
             await this.sendEphemeralPost(post.user_id, post.channel_id, response);
@@ -161,12 +167,16 @@ class StickerBot {
         await this.sendEphemeralPost(post.user_id, post.channel_id, `❌ Unknown command. Try \`@stickerbot help\``);
     }
 
-    async sendMessage(channelId, message) {
+    async sendMessage(channelId, message, rootId = null) {
         try {
-            const response = await axios.post(`${this.serverUrl}/api/v4/posts`, {
+            const postData = {
                 channel_id: channelId,
                 message: message
-            }, {
+            };
+            if (rootId) {
+                postData.root_id = rootId;
+            }
+            const response = await axios.post(`${this.serverUrl}/api/v4/posts`, postData, {
                 headers: {
                     'Authorization': `Bearer ${this.botToken}`
                 }

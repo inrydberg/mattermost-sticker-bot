@@ -142,7 +142,7 @@
             100% { transform: rotate(360deg); }
         }
 
-        .back-btn, .add-pack-btn {
+        .back-btn, .add-pack-btn, .delete-mode-btn {
             position: fixed;
             top: 20px;
             background: rgba(255, 255, 255, 0.2);
@@ -165,6 +165,16 @@
             right: 20px;
         }
 
+        .delete-mode-btn {
+            right: 180px;
+            background: rgba(255, 100, 100, 0.3);
+            border-color: rgba(255, 150, 150, 0.4);
+        }
+
+        .delete-mode-btn:hover {
+            background: rgba(255, 100, 100, 0.5);
+        }
+
         .back-btn:hover, .add-pack-btn:hover {
             background: rgba(255, 255, 255, 0.3);
         }
@@ -175,6 +185,39 @@
 
         .add-pack-btn:hover {
             transform: translateX(2px);
+        }
+
+        /* Delete mode styles */
+        body.delete-mode {
+            background: linear-gradient(135deg, #ea6666 0%, #a24b4b 100%);
+        }
+
+        body.delete-mode .header {
+            background: rgba(100, 0, 0, 0.3);
+        }
+
+        .pack-btn.deletable {
+            position: relative;
+        }
+
+        .pack-btn.deletable::after {
+            content: '🗑️';
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff4444;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .pack-btn.deletable:hover {
+            background: #ffcccc;
+            border: 2px solid #ff4444;
         }
 
         .modal {
@@ -312,10 +355,11 @@
 </head>
 <body>
     <button class="back-btn" id="backBtn" style="display: none;">← Back</button>
+    <button class="delete-mode-btn" id="deleteModeBtn">🗑️</button>
     <button class="add-pack-btn" id="addPackBtn">+ Add Sticker Pack</button>
 
     <div class="header">
-        <h1>Telegram Sticker Picker</h1>
+        <h1 id="headerTitle">Telegram Sticker Picker</h1>
     </div>
 
     <div class="pack-selector" id="packSelector">
@@ -361,11 +405,32 @@
         </div>
     </div>
 
+    <!-- Token Verification Modal -->
+    <div class="modal" id="tokenModal">
+        <div class="modal-content" style="background: linear-gradient(135deg, #ea6666 0%, #a24b4b 100%);">
+            <h2>🔐 Enter Delete Mode</h2>
+            <form id="tokenForm">
+                <div class="form-group">
+                    <label for="tokenInput">MM Bot Token:</label>
+                    <input type="password" id="tokenInput" placeholder="Enter MM_BOT_TOKEN to enable delete mode" required>
+                    <div class="example">Required to delete custom sticker packs</div>
+                </div>
+                <div class="form-buttons">
+                    <button type="button" class="btn btn-cancel" id="cancelToken">Cancel</button>
+                    <button type="submit" class="btn btn-add" style="background: #ff6666; color: white;">Enter Delete Mode</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const params = new URLSearchParams(window.location.search);
         const sessionId = params.get('session');
         let currentPack = null;
         let currentStickers = [];
+        let deleteMode = false;
+        let deleteToken = null;
+        let customPackNames = [];
 
         const packSelector = document.getElementById('packSelector');
         const stickerContainer = document.getElementById('stickerContainer');
@@ -377,6 +442,11 @@
         const addPackModal = document.getElementById('addPackModal');
         const addPackForm = document.getElementById('addPackForm');
         const cancelAddPack = document.getElementById('cancelAddPack');
+        const deleteModeBtn = document.getElementById('deleteModeBtn');
+        const tokenModal = document.getElementById('tokenModal');
+        const tokenForm = document.getElementById('tokenForm');
+        const cancelToken = document.getElementById('cancelToken');
+        const headerTitle = document.getElementById('headerTitle');
 
         function showToast(message, duration = 1000) {
             toast.textContent = message;
@@ -421,6 +491,10 @@
 
         async function loadPacks() {
             try {
+                // Fetch custom pack names for delete mode
+                const customResponse = await fetch('/api/custom-packs');
+                customPackNames = await customResponse.json();
+
                 const response = await fetch('/api/packs');
                 const packs = await response.json();
 
@@ -429,12 +503,72 @@
                     const btn = document.createElement('button');
                     btn.className = 'pack-btn';
                     btn.textContent = pack;
-                    btn.onclick = () => loadStickers(pack);
+
+                    // In delete mode, mark custom packs as deletable
+                    if (deleteMode && customPackNames.includes(pack)) {
+                        btn.classList.add('deletable');
+                        btn.onclick = () => deletePack(pack);
+                    } else if (deleteMode) {
+                        // Default packs in delete mode - not deletable
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                    } else {
+                        btn.onclick = () => loadStickers(pack);
+                    }
+
                     packGrid.appendChild(btn);
                 });
             } catch (error) {
                 packGrid.innerHTML = '<div class="loading">Failed to load packs</div>';
             }
+        }
+
+        async function deletePack(packName) {
+            if (!confirm(`Delete sticker pack "${packName}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/delete-pack', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ packName, token: deleteToken })
+                });
+
+                if (response.ok) {
+                    showToast(`🗑️ Deleted "${packName}"`);
+                    loadPacks(); // Refresh
+                } else {
+                    const error = await response.json();
+                    showToast('❌ ' + error.error);
+                }
+            } catch (error) {
+                showToast('❌ Failed to delete');
+            }
+        }
+
+        function enterDeleteMode(token) {
+            deleteMode = true;
+            deleteToken = token;
+            document.body.classList.add('delete-mode');
+            headerTitle.textContent = '🗑️ DELETE MODE';
+            deleteModeBtn.style.display = 'none';
+            addPackBtn.style.display = 'none';
+            backBtn.style.display = 'block';
+            backBtn.textContent = '← Exit Delete Mode';
+            loadPacks();
+        }
+
+        function exitDeleteMode() {
+            deleteMode = false;
+            deleteToken = null;
+            document.body.classList.remove('delete-mode');
+            headerTitle.textContent = 'Telegram Sticker Picker';
+            deleteModeBtn.style.display = 'block';
+            addPackBtn.style.display = 'block';
+            backBtn.style.display = 'none';
+            backBtn.textContent = '← Back';
+            loadPacks();
         }
 
         async function loadStickers(packName) {
@@ -623,14 +757,58 @@
         }
 
         backBtn.onclick = () => {
-            packSelector.style.display = 'block';
-            stickerContainer.style.display = 'none';
-            backBtn.style.display = 'none';
+            if (deleteMode) {
+                exitDeleteMode();
+            } else {
+                packSelector.style.display = 'block';
+                stickerContainer.style.display = 'none';
+                backBtn.style.display = 'none';
+            }
         };
 
         // Modal event handlers
         addPackBtn.onclick = showAddPackModal;
         cancelAddPack.onclick = hideAddPackModal;
+
+        // Delete mode handlers
+        deleteModeBtn.onclick = () => {
+            tokenModal.classList.add('show');
+        };
+
+        cancelToken.onclick = () => {
+            tokenModal.classList.remove('show');
+            document.getElementById('tokenInput').value = '';
+        };
+
+        tokenForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const token = document.getElementById('tokenInput').value;
+
+            try {
+                const response = await fetch('/api/verify-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+
+                if (response.ok) {
+                    tokenModal.classList.remove('show');
+                    document.getElementById('tokenInput').value = '';
+                    enterDeleteMode(token);
+                } else {
+                    showToast('❌ Invalid token');
+                }
+            } catch (error) {
+                showToast('❌ Verification failed');
+            }
+        };
+
+        tokenModal.onclick = (e) => {
+            if (e.target === tokenModal) {
+                tokenModal.classList.remove('show');
+                document.getElementById('tokenInput').value = '';
+            }
+        };
 
         addPackForm.onsubmit = (e) => {
             e.preventDefault();
