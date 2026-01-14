@@ -491,7 +491,7 @@ MIT License (Non-Commercial) - feel free to use in your own projects!
 
 ## Credits
 
-Built with love for the Mattermost community. Special thanks to:
+Built in a cave with a box of scraps! And love for the Mattermost community. Special thanks to:
 - Telegram Bot API for sticker access
 - Mattermost team for the excellent platform
 - Contributors and testers
