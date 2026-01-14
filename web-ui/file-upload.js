@@ -39,13 +39,18 @@ async function uploadFile(serverUrl, botToken, channelId, filePath, filename) {
     }
 }
 
-async function sendFileAsPost(serverUrl, botToken, channelId, fileInfo, message = '') {
+async function sendFileAsPost(serverUrl, botToken, channelId, fileInfo, message = '', rootId = null) {
     try {
         const postData = {
             channel_id: channelId,
             message: message,
             file_ids: [fileInfo.id]
         };
+
+        // Add root_id for thread support
+        if (rootId) {
+            postData.root_id = rootId;
+        }
 
         const response = await axios.post(
             `${serverUrl}/api/v4/posts`,

@@ -46,7 +46,7 @@ services:
       - "3333:3333"
     volumes:
       - gif_cache:/app/gif-cache
-      - custom_packs:/app/custom-packs
+      - bot_data:/app/data
     depends_on:
       - mattermost
     networks:
@@ -61,7 +61,7 @@ volumes:
   mm_plugins:
   mm_client_plugins:
   gif_cache:
-  custom_packs:
+  bot_data:
 
 networks:
   mattermost:

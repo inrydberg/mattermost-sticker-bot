@@ -3,12 +3,13 @@ const path = require('path');
 const { uploadFile, sendFileAsPost } = require('./file-upload');
 
 class WebPicker {
-    constructor(bot, telegram, port = 3333, webmHandler = null, tgsHandler = null) {
+    constructor(bot, telegram, port = 3333, webmHandler = null, tgsHandler = null, staticHandler = null) {
         this.bot = bot;
         this.telegram = telegram;
         this.port = port;
         this.webmHandler = webmHandler;
         this.tgsHandler = tgsHandler;
+        this.staticHandler = staticHandler;
         this.app = express();
         this.sessions = new Map();
         this.stickerCache = new Map(); // Cache loaded stickers
@@ -19,17 +20,23 @@ class WebPicker {
         // Serve static files
         this.app.use(express.static(path.join(__dirname)));
         this.app.use(express.json());
+        this.app.use(express.urlencoded({ extended: true }));
 
         // Serve index.html for root path
         this.app.get('/', (req, res) => {
             res.sendFile(path.join(__dirname, 'index.html'));
         });
 
-        // Proxy for TGS files to avoid CORS
-        this.app.get('/proxy/tgs', async (req, res) => {
-            const url = req.query.url;
+        // Proxy for sticker files - hash lookup, token never exposed
+        this.app.get('/proxy/sticker', async (req, res) => {
+            const hash = req.query.id;
+            if (!hash) {
+                return res.status(400).send('Missing id parameter');
+            }
+
+            const url = this.telegram.getUrlFromHash(hash);
             if (!url) {
-                return res.status(400).send('Missing URL parameter');
+                return res.status(404).send('Sticker not found');
             }
 
             try {
@@ -40,11 +47,19 @@ class WebPicker {
                     responseType: 'arraybuffer'
                 });
 
-                res.set('Content-Type', 'application/octet-stream');
+                // Set appropriate content type based on URL
+                let contentType = 'application/octet-stream';
+                if (url.includes('.webp')) contentType = 'image/webp';
+                else if (url.includes('.png')) contentType = 'image/png';
+                else if (url.includes('.webm')) contentType = 'video/webm';
+                else if (url.includes('.tgs')) contentType = 'application/octet-stream';
+
+                res.set('Content-Type', contentType);
+                res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24h
                 res.send(response.data);
             } catch (error) {
-                console.error('TGS proxy error:', error.message);
-                res.status(500).send('Failed to fetch TGS file');
+                console.error('Sticker proxy error:', error.message);
+                res.status(500).send('Failed to fetch sticker');
             }
         });
 
@@ -81,14 +96,20 @@ class WebPicker {
                 telegramPackName = customPack.telegramName;
             }
 
-            const stickers = await this.telegram.getAllStickerUrls(telegramPackName);
+            const stickers = await this.telegram.getAllStickerUrls(telegramPackName, true); // useProxy=true
 
             // Cache the result
             if (stickers.length > 0) {
                 this.stickerCache.set(packName, stickers);
             }
 
-            res.json(stickers);
+            // Return only safe fields (no realUrl with token)
+            res.json(stickers.map(s => ({
+                url: s.url,
+                emoji: s.emoji,
+                isAnimated: s.isAnimated,
+                isVideo: s.isVideo
+            })));
         });
 
         // Send sticker to channel
@@ -149,14 +170,39 @@ class WebPicker {
                                 `sticker_${packName}_${stickerIndex}.gif`
                             );
 
-                            // Send the uploaded file as a post with user mention
-                            await sendFileAsPost(
-                                this.bot.serverUrl,
-                                this.bot.botToken,
-                                session.channelId,
-                                fileInfo,
-                                `@${session.username}\n`
-                            );
+                            // Use response_url to preserve thread context (posts as user)
+                            if (session.responseUrl) {
+                                try {
+                                    const axios = require('axios');
+                                    // Use Mattermost's own file URL (HTTPS)
+                                    const fileUrl = `${this.bot.serverUrl}/api/v4/files/${fileInfo.id}`;
+                                    await axios.post(session.responseUrl, {
+                                        response_type: 'in_channel',
+                                        text: `![sticker](${fileUrl})`
+                                    });
+                                    console.log(`Sent GIF via response_url: ${fileUrl}`);
+                                } catch (err) {
+                                    console.log('response_url failed for GIF, falling back:', err.message);
+                                    await sendFileAsPost(
+                                        this.bot.serverUrl,
+                                        this.bot.botToken,
+                                        session.channelId,
+                                        fileInfo,
+                                        `@${session.username}\n`,
+                                        session.rootId
+                                    );
+                                }
+                            } else {
+                                // No response_url - post directly
+                                await sendFileAsPost(
+                                    this.bot.serverUrl,
+                                    this.bot.botToken,
+                                    session.channelId,
+                                    fileInfo,
+                                    `@${session.username}\n`,
+                                    session.rootId
+                                );
+                            }
 
                             console.log(`Uploaded and sent animated GIF: ${packName}_${stickerIndex}`);
                             res.json({ success: true });
@@ -167,8 +213,76 @@ class WebPicker {
                     }
                 }
 
-                // For static images, send as markdown image with user mention
-                await this.bot.sendMessage(session.channelId, `@${session.username}\n![sticker](${sticker})`);
+                // For static images, resize to match GIF size and upload
+                if (this.staticHandler) {
+                    try {
+                        const resizedPath = await this.staticHandler.resizeStaticImage(sticker);
+                        console.log(`Resized static image: ${resizedPath}`);
+
+                        // Upload the resized image to Mattermost
+                        const fileInfo = await uploadFile(
+                            this.bot.serverUrl,
+                            this.bot.botToken,
+                            session.channelId,
+                            resizedPath,
+                            `sticker_${packName}_${stickerIndex}.webp`
+                        );
+
+                        // Use response_url to preserve thread context (posts as user)
+                        if (session.responseUrl) {
+                            try {
+                                const axios = require('axios');
+                                const fileUrl = `${this.bot.serverUrl}/api/v4/files/${fileInfo.id}`;
+                                await axios.post(session.responseUrl, {
+                                    response_type: 'in_channel',
+                                    text: `![sticker](${fileUrl})`
+                                });
+                                console.log(`Sent resized static via response_url: ${fileUrl}`);
+                            } catch (err) {
+                                console.log('response_url failed for static, falling back:', err.message);
+                                await sendFileAsPost(
+                                    this.bot.serverUrl,
+                                    this.bot.botToken,
+                                    session.channelId,
+                                    fileInfo,
+                                    `@${session.username}\n`,
+                                    session.rootId
+                                );
+                            }
+                        } else {
+                            await sendFileAsPost(
+                                this.bot.serverUrl,
+                                this.bot.botToken,
+                                session.channelId,
+                                fileInfo,
+                                `@${session.username}\n`,
+                                session.rootId
+                            );
+                        }
+
+                        console.log(`Uploaded and sent resized static: ${packName}_${stickerIndex}`);
+                        res.json({ success: true });
+                        return;
+                    } catch (err) {
+                        console.error('Failed to resize/upload static, falling back to URL:', err);
+                    }
+                }
+
+                // Fallback: send original URL if resize fails
+                if (session.responseUrl) {
+                    try {
+                        const axios = require('axios');
+                        await axios.post(session.responseUrl, {
+                            response_type: 'in_channel',
+                            text: `![sticker](${sticker})`
+                        });
+                    } catch (err) {
+                        console.log('response_url failed for static, falling back:', err.message);
+                        await this.bot.sendMessage(session.channelId, `@${session.username}\n![sticker](${sticker})`, session.rootId);
+                    }
+                } else {
+                    await this.bot.sendMessage(session.channelId, `@${session.username}\n![sticker](${sticker})`, session.rootId);
+                }
                 res.json({ success: true });
             } else {
                 res.status(400).json({ error: 'Failed to send sticker' });
@@ -195,6 +309,94 @@ class WebPicker {
             }
 
             res.json({ sessionId });
+        });
+
+        // Slash command handler - works EVERYWHERE including DMs!
+        this.app.post('/api/slash', (req, res) => {
+            console.log('[SLASH] Full body:', JSON.stringify(req.body));
+            const { user_id, user_name, channel_id, text, root_id, response_url } = req.body;
+            console.log(`[SLASH] from ${user_name} in ${channel_id}: "${text}" root_id: ${root_id || 'none'}`);
+
+            const command = (text || '').trim().toLowerCase();
+
+            // Generate sticker picker link
+            const sessionId = Math.random().toString(36).substring(7);
+            this.sessions.set(sessionId, {
+                channelId: channel_id,
+                userId: user_id,
+                username: user_name,
+                rootId: root_id || null,
+                responseUrl: response_url || null,
+                created: Date.now()
+            });
+
+            const domain = process.env.DOMAIN || 'http://localhost';
+            const pickerUrl = `${domain}:${this.port}/?session=${sessionId}`;
+
+            return res.json({
+                response_type: 'ephemeral',
+                text: `🎨 [**Open Sticker Picker**](${pickerUrl})`
+            });
+        });
+
+        // Verify token for delete mode
+        this.app.post('/api/verify-token', (req, res) => {
+            const { token } = req.body;
+            const validToken = process.env.MM_BOT_TOKEN;
+
+            if (token === validToken) {
+                res.json({ valid: true });
+            } else {
+                res.status(401).json({ valid: false, error: 'Invalid token' });
+            }
+        });
+
+        // Delete custom sticker pack endpoint
+        this.app.post('/api/delete-pack', async (req, res) => {
+            const { packName, token } = req.body;
+
+            // Verify token
+            if (token !== process.env.MM_BOT_TOKEN) {
+                return res.status(401).json({ error: 'Invalid token' });
+            }
+
+            try {
+                const fs = require('fs');
+                const path = require('path');
+                const customPacksFile = path.join(__dirname, '..', 'data', 'custom-packs.json');
+
+                let customPacks = [];
+                if (fs.existsSync(customPacksFile)) {
+                    const data = fs.readFileSync(customPacksFile, 'utf8');
+                    customPacks = JSON.parse(data);
+                }
+
+                // Find and remove the pack
+                const initialLength = customPacks.length;
+                customPacks = customPacks.filter(pack => pack.name !== packName);
+
+                if (customPacks.length === initialLength) {
+                    return res.status(404).json({ error: 'Pack not found or is a default pack' });
+                }
+
+                // Save updated list
+                fs.writeFileSync(customPacksFile, JSON.stringify(customPacks, null, 2));
+
+                // Clear from cache
+                this.stickerCache.delete(packName);
+
+                console.log(`Deleted custom pack: ${packName}`);
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error deleting pack:', error);
+                res.status(500).json({ error: 'Failed to delete pack' });
+            }
+        });
+
+        // Get custom packs list (for delete mode)
+        this.app.get('/api/custom-packs', (req, res) => {
+            const customPacks = this.getCustomPacks();
+            res.json(customPacks.map(p => p.name));
         });
 
         // Add custom sticker pack endpoint
@@ -229,7 +431,7 @@ class WebPicker {
         const fs = require('fs');
         const path = require('path');
 
-        const customPacksFile = path.join(__dirname, '..', 'custom-packs.json');
+        const customPacksFile = path.join(__dirname, '..', 'data', 'custom-packs.json');
 
         let customPacks = [];
         try {
@@ -268,7 +470,7 @@ class WebPicker {
         const fs = require('fs');
         const path = require('path');
 
-        const customPacksFile = path.join(__dirname, '..', 'custom-packs.json');
+        const customPacksFile = path.join(__dirname, '..', 'data', 'custom-packs.json');
 
         try {
             if (fs.existsSync(customPacksFile)) {
@@ -289,7 +491,7 @@ class WebPicker {
         });
     }
 
-    async generatePickerLink(channelId, userId, username) {
+    async generatePickerLink(channelId, userId, username, rootId = null) {
         // Create a session
         const sessionId = Math.random().toString(36).substring(7);
 
@@ -297,10 +499,11 @@ class WebPicker {
             channelId,
             userId,
             username: username || userId, // fallback to userId if username not provided
+            rootId: rootId || null,
             created: Date.now()
         });
 
-        console.log(`Generated picker link for user: ${username || userId} (${userId})`);
+        console.log(`Generated picker link for user: ${username || userId} (${userId}) rootId: ${rootId || 'none'}`);
         const domain = process.env.DOMAIN || 'http://localhost';
         return `${domain}:${this.port}/?session=${sessionId}`;
     }

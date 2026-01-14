@@ -11,6 +11,7 @@ const TelegramAPI = require('./telegram-api');
 const WebPicker = require('../web-ui/web-picker');
 const WebmHandler = require('./handler_webm');
 const TgsHandler = require('./handler_tgs');
+const StaticHandler = require('./handler_static');
 const CacheManager = require('./cache_manager');
 
 class StickerBot {
@@ -18,6 +19,7 @@ class StickerBot {
         this.serverUrl = config.serverUrl;
         this.botToken = config.botToken;
         this.wsUrl = config.wsUrl;
+        this.botUsername = config.botUsername || 'stickerbot';
         this.botId = null;
         this.ws = null;
 
@@ -27,9 +29,10 @@ class StickerBot {
         // Initialize converters
         this.webmHandler = new WebmHandler();
         this.tgsHandler = new TgsHandler();
+        this.staticHandler = new StaticHandler();
 
-        // Initialize web picker with both handlers
-        this.webPicker = new WebPicker(this, this.telegram, process.env.UI_PORT || 3333, this.webmHandler, this.tgsHandler);
+        // Initialize web picker with all handlers
+        this.webPicker = new WebPicker(this, this.telegram, process.env.UI_PORT || 3333, this.webmHandler, this.tgsHandler, this.staticHandler);
         this.webPicker.start();
 
         // Initialize and start cache manager
@@ -79,6 +82,7 @@ class StickerBot {
 
         this.ws.on('message', async (data) => {
             const message = JSON.parse(data);
+            console.log('WS event:', message.event || 'no-event', message.data?.post ? 'has-post' : '');
 
             if (message.event === 'posted') {
                 const post = JSON.parse(message.data.post);
@@ -103,14 +107,18 @@ class StickerBot {
 
     async handleMessage(post) {
         const message = post.message.toLowerCase().trim();
+        console.log('Processing message:', message, 'root_id:', post.root_id || 'none');
 
         // Only respond to mentions
         const botMention = `<@${this.botId}>`;
+        const botUsernameRegex = new RegExp(`(?:^|\\s)@${this.botUsername}(?:\\s|$)`, 'i');
+        console.log('Looking for botMention:', botMention, 'or @' + this.botUsername);
         // Check for actual @mention (with word boundary) not just the string anywhere
         const hasBotMention = message.includes(botMention.toLowerCase()) ||
-                             /(?:^|\s)@stickerbot(?:\s|$)/.test(message);
+                             botUsernameRegex.test(message);
 
         if (!hasBotMention) {
+            console.log('No bot mention found, ignoring');
             return; // Ignore messages that don't mention the bot
         }
 
@@ -134,7 +142,7 @@ class StickerBot {
         // Remove bot mention to get the command
         const cleanMessage = message
             .replace(botMention.toLowerCase(), '')
-            .replace('@stickerbot', '')
+            .replace(new RegExp(`@${this.botUsername}`, 'gi'), '')
             .trim();
 
         const parts = cleanMessage.split(' ').filter(p => p);
@@ -150,7 +158,7 @@ class StickerBot {
             const userInfo = await this.getUserInfo(post.user_id);
             const username = userInfo ? userInfo.username : post.user_id;
 
-            const pickerUrl = await this.webPicker.generatePickerLink(post.channel_id, post.user_id, username);
+            const pickerUrl = await this.webPicker.generatePickerLink(post.channel_id, post.user_id, username, post.root_id);
             const response = `🎨 **Sticker Selector**\n\n[**Open Sticker Interface**](${pickerUrl})\n\n_Select and send stickers instantly!_`;
 
             await this.sendEphemeralPost(post.user_id, post.channel_id, response);
@@ -158,15 +166,19 @@ class StickerBot {
         }
 
         // Unknown command
-        await this.sendEphemeralPost(post.user_id, post.channel_id, `❌ Unknown command. Try \`@stickerbot help\``);
+        await this.sendEphemeralPost(post.user_id, post.channel_id, `❌ Unknown command. Try \`@${this.botUsername} help\``);
     }
 
-    async sendMessage(channelId, message) {
+    async sendMessage(channelId, message, rootId = null) {
         try {
-            const response = await axios.post(`${this.serverUrl}/api/v4/posts`, {
+            const postData = {
                 channel_id: channelId,
                 message: message
-            }, {
+            };
+            if (rootId) {
+                postData.root_id = rootId;
+            }
+            const response = await axios.post(`${this.serverUrl}/api/v4/posts`, postData, {
                 headers: {
                     'Authorization': `Bearer ${this.botToken}`
                 }
@@ -225,8 +237,8 @@ class StickerBot {
 ## 🎉 Telegram Sticker Bot
 
 **Commands:**
-• \`@stickerbot help\` - Show this help menu
-• \`@stickerbot s\` - Open Sticker Selector
+• \`@${this.botUsername} help\` - Show this help menu
+• \`@${this.botUsername} s\` - Open Sticker Selector
 
 _💡 Click stickers in the picker to send them instantly!_
         `;
@@ -240,7 +252,8 @@ _💡 Click stickers in the picker to send them instantly!_
 const config = {
     serverUrl: process.env.MM_SERVER_URL || process.env.MM_SERVER_URL_LOCAL || 'http://localhost:8065',
     wsUrl: process.env.MM_WS_URL || process.env.MM_WS_URL_LOCAL || 'ws://localhost:8065/api/v4/websocket',
-    botToken: process.env.MM_BOT_TOKEN
+    botToken: process.env.MM_BOT_TOKEN,
+    botUsername: process.env.BOT_USERNAME || 'stickerbot'
 };
 
 // Check if bot token is provided
