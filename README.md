@@ -233,6 +233,19 @@ sticker-bot BOT  12:34 PM
 sticker
 ```
 
+### Mode Comparison
+
+| Feature | @Mentions (`@stickerbot s`) | Slash Commands (`/sticker`) |
+|---------|----------------------------|----------------------------|
+| Works in channels | ✅ (if bot invited) | ✅ |
+| Works in DMs | ❌ | ✅ |
+| Works in group messages | ❌ | ✅ |
+| Works in threads | ✅ | ✅ |
+| Thread context preserved | ✅ | ✅ |
+| Posts as | Bot username | Your username `BOT` |
+| User attribution | Explicit (@YourUsername) | Implicit (your name) |
+| Setup required | Bot invite per channel | Slash command config |
+
 ### Using the Web Interface
 
 1. Type `/sticker` (or `@stickerbot s` in invited channels)
@@ -259,6 +272,7 @@ sticker
 - **src/telegram-api.js** - Telegram API integration for fetching stickers
 - **src/handler_tgs.js** - TGS to GIF converter using lottie-converter
 - **src/handler_webm.js** - WebM to GIF converter using ffmpeg
+- **src/handler_static.js** - Static image resizer for consistent sticker sizes
 - **src/cache_manager.js** - Automatic cache size management (100MB limit)
 - **web-ui/web-picker.js** - Express server for the web interface (port 3333)
 - **web-ui/file-upload.js** - Mattermost file upload utilities
@@ -267,13 +281,31 @@ sticker
 
 1. User clicks sticker in web interface
 2. Bot fetches sticker from Telegram API
-3. Checks cache for existing GIF
-4. If not cached, converts to GIF:
-   - **TGS**: Decompress with pako → Convert with lottie-converter
-   - **WebM**: Extract frames with ffmpeg → Generate optimized GIF
+3. Checks cache for existing file
+4. If not cached, processes the sticker:
+   - **TGS**: Decompress with pako → Convert with lottie-converter (256x256)
+   - **WebM**: Extract frames with ffmpeg → Generate optimized GIF (256px width)
+   - **Static (WEBP/PNG)**: Resize with ffmpeg (256px width)
 5. Saves to cache for future use
-6. Uploads GIF to Mattermost
+6. Uploads to Mattermost
 7. Posts in channel
+
+### Customizing Sticker Size
+
+All stickers are resized to **256px width** by default for consistent display. To change this:
+
+| Sticker Type | File | Line to Modify |
+|--------------|------|----------------|
+| WebM (animated) | `src/handler_webm.js` | `scale=256:-1` in ffmpeg command |
+| TGS (Lottie) | `src/handler_tgs.js` | `width: 256, height: 256` in converter options |
+| Static (WEBP/PNG) | `src/handler_static.js` | `scale=256:-1` in ffmpeg command |
+
+**Example:** To change sticker size to 512px width, replace `256` with `512` in the respective files.
+
+**Note:** After changing sizes, clear the cache to regenerate stickers at the new size:
+```bash
+rm -rf gif-cache/*
+```
 
 ### Project Structure
 
@@ -284,6 +316,7 @@ mattermost-sticker-bot/
 │   ├── telegram-api.js     # Telegram API client
 │   ├── handler_tgs.js      # TGS → GIF converter
 │   ├── handler_webm.js     # WebM → GIF converter
+│   ├── handler_static.js   # Static image resizer
 │   └── cache_manager.js    # Automatic cache cleanup
 ├── web-ui/                  # Web interface
 │   ├── web-picker.js       # Express server (port 3333)

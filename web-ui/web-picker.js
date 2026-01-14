@@ -3,12 +3,13 @@ const path = require('path');
 const { uploadFile, sendFileAsPost } = require('./file-upload');
 
 class WebPicker {
-    constructor(bot, telegram, port = 3333, webmHandler = null, tgsHandler = null) {
+    constructor(bot, telegram, port = 3333, webmHandler = null, tgsHandler = null, staticHandler = null) {
         this.bot = bot;
         this.telegram = telegram;
         this.port = port;
         this.webmHandler = webmHandler;
         this.tgsHandler = tgsHandler;
+        this.staticHandler = staticHandler;
         this.app = express();
         this.sessions = new Map();
         this.stickerCache = new Map(); // Cache loaded stickers
@@ -193,7 +194,62 @@ class WebPicker {
                     }
                 }
 
-                // For static images, try response_url first for thread context
+                // For static images, resize to match GIF size and upload
+                if (this.staticHandler) {
+                    try {
+                        const resizedPath = await this.staticHandler.resizeStaticImage(sticker);
+                        console.log(`Resized static image: ${resizedPath}`);
+
+                        // Upload the resized image to Mattermost
+                        const fileInfo = await uploadFile(
+                            this.bot.serverUrl,
+                            this.bot.botToken,
+                            session.channelId,
+                            resizedPath,
+                            `sticker_${packName}_${stickerIndex}.webp`
+                        );
+
+                        // Use response_url to preserve thread context (posts as user)
+                        if (session.responseUrl) {
+                            try {
+                                const axios = require('axios');
+                                const fileUrl = `${this.bot.serverUrl}/api/v4/files/${fileInfo.id}`;
+                                await axios.post(session.responseUrl, {
+                                    response_type: 'in_channel',
+                                    text: `![sticker](${fileUrl})`
+                                });
+                                console.log(`Sent resized static via response_url: ${fileUrl}`);
+                            } catch (err) {
+                                console.log('response_url failed for static, falling back:', err.message);
+                                await sendFileAsPost(
+                                    this.bot.serverUrl,
+                                    this.bot.botToken,
+                                    session.channelId,
+                                    fileInfo,
+                                    `@${session.username}\n`,
+                                    session.rootId
+                                );
+                            }
+                        } else {
+                            await sendFileAsPost(
+                                this.bot.serverUrl,
+                                this.bot.botToken,
+                                session.channelId,
+                                fileInfo,
+                                `@${session.username}\n`,
+                                session.rootId
+                            );
+                        }
+
+                        console.log(`Uploaded and sent resized static: ${packName}_${stickerIndex}`);
+                        res.json({ success: true });
+                        return;
+                    } catch (err) {
+                        console.error('Failed to resize/upload static, falling back to URL:', err);
+                    }
+                }
+
+                // Fallback: send original URL if resize fails
                 if (session.responseUrl) {
                     try {
                         const axios = require('axios');
