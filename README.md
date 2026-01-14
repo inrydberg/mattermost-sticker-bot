@@ -307,6 +307,17 @@ All stickers are resized to **256px width** by default for consistent display. T
 rm -rf gif-cache/*
 ```
 
+### Security: Telegram Token Protection
+
+Sticker URLs from Telegram contain the bot token. To prevent exposure in browser DevTools, the bot uses a **secure proxy with hash-based lookup**:
+
+1. Server generates MD5 hash from Telegram URL
+2. Stores `hash → URL` mapping in memory
+3. Browser only receives `/proxy/sticker?id=<hash>`
+4. Token never leaves the server - impossible to extract from hash
+
+This protects your Telegram bot token from being visible in network requests.
+
 ### Project Structure
 
 ```
@@ -445,7 +456,7 @@ These sticker packs are included by default and ready to use immediately.
 
 ## Changelog
 
-### v1.1.0 - Slash Commands, Thread Support & Delete Mode
+### v1.1.0 - Slash Commands, Thread Support, Delete Mode & Security
 
 **New Features:**
 - **Slash Command Support** (`/sticker`) - Works everywhere: channels, DMs, group messages, threads
@@ -453,6 +464,9 @@ These sticker packs are included by default and ready to use immediately.
 - **Dual Operation Modes** - Choose between slash commands (recommended) or @mentions
 - **Delete Mode** - Token-protected UI for removing custom sticker packs
 - **Persistent Data Volume** - Custom packs stored in `/app/data/` with Docker volume support
+- **Static Image Resizing** - All static stickers resized to 256px width for consistent display
+- **Configurable Bot Username** - New `BOT_USERNAME` env var for custom bot names
+- **Secure Sticker Proxy** - Hash-based URL lookup prevents Telegram token exposure in browser
 
 **Improvements:**
 - Added `/api/slash` endpoint for Mattermost slash command integration
@@ -469,10 +483,12 @@ These sticker packs are included by default and ready to use immediately.
 - Updated `.env.example` with local and remote deployment options
 
 **Technical Changes:**
-- `web-picker.js`: Added slash command handler, delete mode endpoints (`/api/verify-token`, `/api/delete-pack`, `/api/custom-packs`)
-- `stickerbot.js`: Improved mention detection regex, added rootId to picker links
+- `web-picker.js`: Added slash command handler, delete mode endpoints, secure sticker proxy (`/proxy/sticker?id=<hash>`)
+- `telegram-api.js`: Added `urlMap`, `hashUrl()`, `getUrlFromHash()` for secure URL mapping
+- `stickerbot.js`: Added `BOT_USERNAME` support, static handler, improved mention detection
+- `handler_static.js`: New static image resizer using ffmpeg
 - `file-upload.js`: Added rootId parameter for thread-aware file posts
-- `index.html`: Delete mode UI with token modal and visual feedback
+- `index.html`: Delete mode UI, updated sticker type detection to use flags instead of URL extensions
 - `Dockerfile`: Creates `/app/data/custom-packs.json` for volume initialization
 - `docker-compose.yml`: Uses named volume `bot_data:/app/data` for persistence
 - GIFs via slash commands use Mattermost file URLs for proper rendering
