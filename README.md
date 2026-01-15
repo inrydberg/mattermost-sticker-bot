@@ -238,10 +238,11 @@ sticker
 | Feature | @Mentions (`@stickerbot s`) | Slash Commands (`/sticker`) |
 |---------|----------------------------|----------------------------|
 | Works in channels | ✅ (if bot invited) | ✅ |
-| Works in DMs | ❌ | ✅ |
-| Works in group messages | ❌ | ✅ |
 | Works in threads | ✅ | ✅ |
 | Thread context preserved | ✅ | ✅ |
+| Works in DMs | ❌ | ✅ |
+| Works in group messages | ❌ | ✅ |
+| Sticker messages can be deleted | ❌ (unless admin) | ✅ |
 | Posts as | Bot username | Your username `BOT` |
 | User attribution | Explicit (@YourUsername) | Implicit (your name) |
 | Setup required | Bot invite per channel | Slash command config |
