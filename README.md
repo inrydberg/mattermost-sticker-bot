@@ -42,7 +42,7 @@ Bot will be running on port 3333 for web interface!
 
 - **Telegram Sticker Integration**: Access real Telegram sticker packs
 - **WebM Video Stickers**: Automatic conversion to GIF format
-- **TGS Animated Stickers**: Lottie-based animations converted to GIF using lottie-converter
+- **TGS Animated Stickers**: Fully local Lottie rendering with lottie-web + @napi-rs/canvas, encoded to GIF with gifski at 50fps
 - **Web Interface**: Interactive sticker picker (configurable via UI_PORT, defaults to port 3333)
 - **Real-time Updates**: WebSocket integration for instant sticker delivery
 - **Thread Support**: Stickers sent from threads stay in threads (via slash commands)
@@ -57,16 +57,17 @@ Bot will be running on port 3333 for web interface!
 ## Prerequisites
 
 - **Node.js 14+** (18.x recommended)
-- **FFmpeg** (for WebM video sticker conversion)
+- **FFmpeg** (for WebM frame extraction)
+- **gifski** (for high-quality GIF encoding at 50fps)
   ```bash
   # Ubuntu/Debian
-  sudo apt-get install ffmpeg
+  sudo apt-get install ffmpeg gifski
 
   # macOS
-  brew install ffmpeg
+  brew install ffmpeg gifski
 
-  # Windows
-  # Download from https://ffmpeg.org/download.html
+  # Alpine (Docker)
+  apk add ffmpeg gifski
   ```
 - **Mattermost server** (tested with 8.1+)
 - **Telegram Bot Token** (any token will work - it's only used for fetching stickers)
@@ -260,7 +261,7 @@ sticker
 ### Features in Action
 
 - **Animated Stickers**: TGS files automatically convert to GIF
-- **Video Stickers**: WebM files convert to GIF using ffmpeg
+- **Video Stickers**: WebM files convert to GIF using ffmpeg + gifski
 - **Clean Chat**: Bot commands are auto-deleted
 - **Private Responses**: Help messages only you can see
 - **Smart Cache**: Converted GIFs cached for instant reuse
@@ -271,8 +272,8 @@ sticker
 
 - **src/stickerbot.js** - Main bot handling Mattermost WebSocket and commands
 - **src/telegram-api.js** - Telegram API integration for fetching stickers
-- **src/handler_tgs.js** - TGS to GIF converter using lottie-converter
-- **src/handler_webm.js** - WebM to GIF converter using ffmpeg
+- **src/handler_tgs.js** - TGS to GIF converter using lottie-web + @napi-rs/canvas + gifski
+- **src/handler_webm.js** - WebM to GIF converter using ffmpeg + gifski
 - **src/handler_static.js** - Static image resizer for consistent sticker sizes
 - **src/cache_manager.js** - Automatic cache size management (100MB limit)
 - **web-ui/web-picker.js** - Express server for the web interface (port 3333)
@@ -284,8 +285,8 @@ sticker
 2. Bot fetches sticker from Telegram API
 3. Checks cache for existing file
 4. If not cached, processes the sticker:
-   - **TGS**: Decompress with pako → Convert with lottie-converter (256x256)
-   - **WebM**: Extract frames with ffmpeg → Generate optimized GIF (256px width)
+   - **TGS**: Decompress with pako → Render frames with lottie-web + @napi-rs/canvas → Encode GIF with gifski (50fps, 256px)
+   - **WebM**: Extract frames with ffmpeg (50fps) → Encode GIF with gifski (256px width)
    - **Static (WEBP/PNG)**: Resize with ffmpeg (256px width)
 5. Saves to cache for future use
 6. Uploads to Mattermost
@@ -298,7 +299,7 @@ All stickers are resized to **256px width** by default for consistent display. T
 | Sticker Type | File | Line to Modify |
 |--------------|------|----------------|
 | WebM (animated) | `src/handler_webm.js` | `scale=256:-1` in ffmpeg command |
-| TGS (Lottie) | `src/handler_tgs.js` | `width: 256, height: 256` in converter options |
+| TGS (Lottie) | `src/handler_tgs.js` | `SIZE = 256` constant and `--width 256` in gifski command |
 | Static (WEBP/PNG) | `src/handler_static.js` | `scale=256:-1` in ffmpeg command |
 
 **Example:** To change sticker size to 512px width, replace `256` with `512` in the respective files.
@@ -376,7 +377,8 @@ The bot includes intelligent cache management:
 
 ### Animated stickers showing as static?
 - ✅ Verify ffmpeg is installed: `ffmpeg -version`
-- ✅ Check lottie-converter installed: `npm ls lottie-converter`
+- ✅ Check dependencies installed: `npm ls @napi-rs/canvas lottie-web`
+- ✅ Verify gifski is installed: `gifski --version`
 - ✅ Ensure gif-cache/ directory is writable
 - ✅ Look for conversion errors in console
 
@@ -451,11 +453,36 @@ These sticker packs are included by default and ready to use immediately.
 - `form-data` - File upload handling
 
 ### Conversion Dependencies
-- `lottie-converter` - TGS to GIF conversion
-- `pako` - TGS decompression
-- `ffmpeg` (system) - WebM to GIF conversion
+- `@napi-rs/canvas` - Native canvas for server-side frame rendering
+- `lottie-web` - Lottie animation engine (canvas renderer)
+- `jsdom` - DOM emulation for lottie-web in Node.js
+- `pako` - TGS decompression (gzipped Lottie JSON)
+- `ffmpeg` (system) - WebM frame extraction
+- `gifski` (system) - High-quality GIF encoding with per-frame palette optimization
 
 ## Changelog
+
+### v1.2.0 - Local TGS Conversion, gifski Encoding & Secure Send Pipeline
+
+**New Features:**
+- **Local TGS Rendering** - Replaced `lottie-converter` (external iconscout.com dependency) with fully local rendering using `lottie-web` + `@napi-rs/canvas` + `jsdom`
+- **gifski GIF Encoding** - Both TGS and WebM pipelines now use gifski for high-quality GIFs at 50fps with per-frame palette optimization
+- **Stable Cache Keys** - All handlers (TGS, WebM, Static) now use Telegram `file_id` for cache keys instead of expiring URLs, so cache survives URL refreshes
+- **Session Expiry Handling** - When slash command `response_url` exhausts its 5-use limit, web UI prompts user to re-run `/sticker` instead of silently falling back to bot posting
+- **Secure Send Pipeline** - Bot never posts raw Telegram URLs into chat; all stickers uploaded to Mattermost as files first
+
+**Technical Changes:**
+- `handler_tgs.js`: Complete rewrite — renders Lottie frames locally with `@napi-rs/canvas`, encodes with gifski
+- `handler_webm.js`: Switched from ffmpeg GIF encoder to ffmpeg frame extraction + gifski encoding
+- `handler_static.js`: Added `fileId` parameter for stable cache keys
+- `telegram-api.js`: Added `getStickerInfo()` returning both URL and `file_id`
+- `web-picker.js`: Refactored `/api/send` — `postFile` helper, `session_expired` detection, no raw URL fallback
+- `file-upload.js`: Added `overrideUsername` parameter to `sendFileAsPost()`
+- `index.html`: Client-side session expiry tracking, shows "run /sticker again" prompt
+- `Dockerfile`: Added `gifski` to Alpine dependencies
+- `package.json`: Replaced `lottie-converter` with `@napi-rs/canvas`, `jsdom`, `lottie-web`
+
+**Important:** Mount `/app/data` as a Docker volume to persist custom sticker packs across container rebuilds.
 
 ### v1.1.0 - Slash Commands, Thread Support, Delete Mode & Security
 
