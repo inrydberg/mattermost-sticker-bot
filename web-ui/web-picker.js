@@ -27,39 +27,31 @@ class WebPicker {
             res.sendFile(path.join(__dirname, 'index.html'));
         });
 
-        // Proxy for sticker files - hash lookup, token never exposed
+        // Proxy for sticker files - hash lookup, auto-refresh on expiry
         this.app.get('/proxy/sticker', async (req, res) => {
             const hash = req.query.id;
-            if (!hash) {
-                return res.status(400).send('Missing id parameter');
-            }
+            if (!hash) return res.status(400).send('Missing id parameter');
 
-            const url = this.telegram.getUrlFromHash(hash);
-            if (!url) {
-                return res.status(404).send('Sticker not found');
-            }
+            let url = await this.telegram.getUrlFromHash(hash);
+            if (!url) return res.status(404).send('Sticker not found');
 
-            try {
-                const axios = require('axios');
-                const response = await axios({
-                    method: 'GET',
-                    url: url,
-                    responseType: 'arraybuffer'
-                });
-
-                // Set appropriate content type based on URL
-                let contentType = 'application/octet-stream';
-                if (url.includes('.webp')) contentType = 'image/webp';
-                else if (url.includes('.png')) contentType = 'image/png';
-                else if (url.includes('.webm')) contentType = 'video/webm';
-                else if (url.includes('.tgs')) contentType = 'application/octet-stream';
-
-                res.set('Content-Type', contentType);
-                res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24h
-                res.send(response.data);
-            } catch (error) {
-                console.error('Sticker proxy error:', error.message);
-                res.status(500).send('Failed to fetch sticker');
+            const axios = require('axios');
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    const response = await axios({ method: 'GET', url, responseType: 'arraybuffer' });
+                    const ext = ['.webp', '.png', '.webm', '.tgs'].find(e => url.includes(e));
+                    const types = { '.webp': 'image/webp', '.png': 'image/png', '.webm': 'video/webm' };
+                    res.set('Content-Type', types[ext] || 'application/octet-stream');
+                    res.set('Cache-Control', 'public, max-age=3600');
+                    return res.send(response.data);
+                } catch (error) {
+                    if (attempt === 0 && error.response?.status === 404) {
+                        url = await this.telegram.refreshUrl(hash);
+                        if (url) continue;
+                    }
+                    console.error('Sticker proxy error:', error.message);
+                    return res.status(500).send('Failed to fetch sticker');
+                }
             }
         });
 

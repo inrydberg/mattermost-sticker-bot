@@ -11,16 +11,32 @@ class TelegramAPI {
         this.urlMap = new Map(); // hash -> real URL (token never leaves server)
     }
 
-    // Generate hash and store URL mapping
-    hashUrl(url) {
-        const hash = crypto.createHash('md5').update(url).digest('hex').substring(0, 16);
-        this.urlMap.set(hash, url);
+    // Generate hash and store URL mapping with file_id for refresh
+    hashUrl(url, fileId) {
+        const hash = crypto.createHash('md5').update(fileId).digest('hex').substring(0, 16);
+        this.urlMap.set(hash, { url, fileId });
         return hash;
     }
 
-    // Get real URL from hash
-    getUrlFromHash(hash) {
-        return this.urlMap.get(hash);
+    // Get real URL from hash, auto-refresh if expired (404)
+    async getUrlFromHash(hash) {
+        const entry = this.urlMap.get(hash);
+        if (!entry) return null;
+        return entry.url;
+    }
+
+    // Refresh expired URL using file_id
+    async refreshUrl(hash) {
+        const entry = this.urlMap.get(hash);
+        if (!entry) return null;
+
+        const freshUrl = await this.getFileUrl(entry.fileId);
+        if (freshUrl) {
+            entry.url = freshUrl;
+            this.urlMap.set(hash, entry);
+            return freshUrl;
+        }
+        return null;
     }
 
     async getStickerSet(setName) {
@@ -105,7 +121,7 @@ class TelegramAPI {
 
             if (url) {
                 // Use proxy URL with hash - token never leaves server
-                const hash = this.hashUrl(url);
+                const hash = this.hashUrl(url, sticker.file_id);
                 const displayUrl = useProxy ? `/proxy/sticker?id=${hash}` : url;
 
                 return {
