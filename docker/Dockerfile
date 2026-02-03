@@ -2,7 +2,7 @@ FROM node:18-alpine
 
 # Install ffmpeg for WebM to GIF conversion
 # Note: If build fails due to network issues, try again or comment out this line temporarily
-RUN apk add --no-cache ffmpeg || true
+RUN apk add --no-cache ffmpeg gifski || true
 
 # Create app directory
 WORKDIR /app

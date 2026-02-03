@@ -39,13 +39,21 @@ async function uploadFile(serverUrl, botToken, channelId, filePath, filename) {
     }
 }
 
-async function sendFileAsPost(serverUrl, botToken, channelId, fileInfo, message = '', rootId = null) {
+async function sendFileAsPost(serverUrl, botToken, channelId, fileInfo, message = '', rootId = null, overrideUsername = null) {
     try {
         const postData = {
             channel_id: channelId,
             message: message,
             file_ids: [fileInfo.id]
         };
+
+        // Override username so it looks like it came from the user, not the bot
+        if (overrideUsername) {
+            postData.props = {
+                from_webhook: 'true',
+                override_username: overrideUsername
+            };
+        }
 
         // Add root_id for thread support
         if (rootId) {
