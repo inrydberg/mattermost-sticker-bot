@@ -47,8 +47,8 @@ class WebmHandler {
         return null;
     }
 
-    async convertWebmToGif(webmUrl) {
-        const hash = this.generateHash(webmUrl);
+    async convertWebmToGif(webmUrl, fileId = null) {
+        const hash = this.generateHash(fileId || webmUrl);
         const cachedGif = path.join(this.cacheDir, `${hash}.gif`);
 
         // Check cache first
@@ -66,22 +66,30 @@ class WebmHandler {
             console.log(`Downloading WEBM from ${webmUrl}`);
             await this.downloadFile(webmUrl, tempWebm);
 
-            console.log(`Converting WEBM to GIF: ${hash}`);
-            await new Promise((resolve, reject) => {
-                // ffmpeg command with optimizations for sticker-sized GIFs - output directly to cache
-                const command = `ffmpeg -i "${tempWebm}" -vf "fps=20,scale=256:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 "${cachedGif}"`;
+            // Extract frames with ffmpeg, then encode with gifski
+            const framesDir = path.join(this.tempDir, `webm_${hash}`);
+            await fs.mkdir(framesDir, { recursive: true });
 
-                exec(command, (error, stdout, stderr) => {
-                    if (error) {
-                        console.error('FFmpeg error:', stderr);
-                        reject(error);
-                    } else {
-                        resolve();
-                    }
+            console.log(`Extracting WEBM frames: ${hash}`);
+            await new Promise((resolve, reject) => {
+                exec(`ffmpeg -i "${tempWebm}" -vf "fps=50,scale=256:-1:flags=lanczos" "${framesDir}/frame_%04d.png"`, (error) => {
+                    if (error) reject(error);
+                    else resolve();
                 });
             });
 
-            // Clean up temp webm file only
+            console.log(`Encoding GIF with gifski: ${hash}`);
+            await new Promise((resolve, reject) => {
+                exec(`gifski --fps 50 --width 256 --quality 90 -o "${cachedGif}" ${framesDir}/frame_*.png`, (error) => {
+                    if (error) reject(error);
+                    else resolve();
+                });
+            });
+
+            // Clean up temp files
+            const frames = await fs.readdir(framesDir);
+            for (const f of frames) await fs.unlink(path.join(framesDir, f)).catch(() => {});
+            await fs.rmdir(framesDir).catch(() => {});
             await fs.unlink(tempWebm).catch(() => {});
 
             console.log(`Converted successfully: ${hash}`);

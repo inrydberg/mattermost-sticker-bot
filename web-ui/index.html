@@ -701,9 +701,16 @@
             }
         }
 
+        let sessionExpired = false;
+
         async function sendSticker(index) {
             if (!sessionId) {
                 showToast('❌ Invalid session');
+                return;
+            }
+
+            if (sessionExpired) {
+                showToast('⚠️ Session expired — run /sticker again');
                 return;
             }
 
@@ -745,7 +752,13 @@
                     }
                 } else {
                     toast.classList.remove('converting');
-                    showToast('❌ Failed to send');
+                    const errData = await response.json().catch(() => ({}));
+                    if (errData.error === 'session_expired') {
+                        sessionExpired = true;
+                        showToast('⚠️ Session expired — run /sticker again');
+                    } else {
+                        showToast('❌ Failed to send');
+                    }
                 }
             } catch (error) {
                 showToast('❌ Network error');

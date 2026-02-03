@@ -93,19 +93,19 @@ class TelegramAPI {
     }
 
     async getStickerUrl(setName, stickerIndex) {
+        const info = await this.getStickerInfo(setName, stickerIndex);
+        return info ? info.url : null;
+    }
+
+    async getStickerInfo(setName, stickerIndex) {
         const stickerSet = await this.getStickerSet(setName);
-        if (!stickerSet || !stickerSet.stickers) {
-            return null;
-        }
+        if (!stickerSet || !stickerSet.stickers) return null;
 
         const sticker = stickerSet.stickers[stickerIndex];
-        if (!sticker) {
-            return null;
-        }
+        if (!sticker) return null;
 
-        // Always get the actual file for animations
-        const fileId = sticker.file_id;
-        return await this.getFileUrl(fileId);
+        const url = await this.getFileUrl(sticker.file_id);
+        return url ? { url, fileId: sticker.file_id } : null;
     }
 
     async getAllStickerUrls(setName, useProxy = false) {

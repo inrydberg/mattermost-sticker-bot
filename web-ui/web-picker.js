@@ -125,160 +125,84 @@ class WebPicker {
                 telegramPackName = customPack.telegramName;
             }
 
-            const sticker = await this.telegram.getStickerUrl(telegramPackName, stickerIndex);
-            if (sticker) {
-                let stickerUrl = sticker;
-                let gifFilePath = null;
+            // Get fresh sticker info (URL + file_id for stable caching)
+            const stickerInfo = await this.telegram.getStickerInfo(telegramPackName, stickerIndex);
+            if (!stickerInfo) {
+                return res.status(400).json({ error: 'Failed to get sticker URL' });
+            }
+            const { url: stickerUrl, fileId } = stickerInfo;
 
-                // Convert WEBM or TGS to GIF if converter is available
-                if (this.webmHandler) {
-                    try {
-                        const domain = process.env.DOMAIN || 'http://localhost';
-                        const baseUrl = `${domain}:${this.port}`;
-
-                        // Check if it's a WEBM file
-                        if (sticker.includes('.webm')) {
-                            gifFilePath = await this.webmHandler.convertWebmToGif(sticker);
-                            console.log(`Converted WEBM to GIF: ${gifFilePath}`);
-                        }
-                        // Check if it's a TGS file
-                        else if (sticker.includes('.tgs')) {
-                            gifFilePath = this.tgsHandler ? await this.tgsHandler.convertTgsToGif(sticker) : null;
-                            if (gifFilePath) {
-                                console.log(`Converted TGS to GIF: ${gifFilePath}`);
-                            } else {
-                                console.log('TGS conversion failed, will use static preview');
-                            }
-                        }
-
-                        // If we have a converted GIF, upload it
-                        if (gifFilePath) {
-                            // Upload the GIF file to Mattermost
-                            const fileInfo = await uploadFile(
-                                this.bot.serverUrl,
-                                this.bot.botToken,
-                                session.channelId,
-                                gifFilePath,
-                                `sticker_${packName}_${stickerIndex}.gif`
-                            );
-
-                            // Use response_url to preserve thread context (posts as user)
-                            if (session.responseUrl) {
-                                try {
-                                    const axios = require('axios');
-                                    // Use Mattermost's own file URL (HTTPS)
-                                    const fileUrl = `${this.bot.serverUrl}/api/v4/files/${fileInfo.id}`;
-                                    await axios.post(session.responseUrl, {
-                                        response_type: 'in_channel',
-                                        text: `![sticker](${fileUrl})`
-                                    });
-                                    console.log(`Sent GIF via response_url: ${fileUrl}`);
-                                } catch (err) {
-                                    console.log('response_url failed for GIF, falling back:', err.message);
-                                    await sendFileAsPost(
-                                        this.bot.serverUrl,
-                                        this.bot.botToken,
-                                        session.channelId,
-                                        fileInfo,
-                                        `@${session.username}\n`,
-                                        session.rootId
-                                    );
-                                }
-                            } else {
-                                // No response_url - post directly
-                                await sendFileAsPost(
-                                    this.bot.serverUrl,
-                                    this.bot.botToken,
-                                    session.channelId,
-                                    fileInfo,
-                                    `@${session.username}\n`,
-                                    session.rootId
-                                );
-                            }
-
-                            console.log(`Uploaded and sent animated GIF: ${packName}_${stickerIndex}`);
-                            res.json({ success: true });
-                            return;
-                        }
-                    } catch (err) {
-                        console.error('Failed to convert/upload GIF, falling back to static:', err);
-                    }
-                }
-
-                // For static images, resize to match GIF size and upload
-                if (this.staticHandler) {
-                    try {
-                        const resizedPath = await this.staticHandler.resizeStaticImage(sticker);
-                        console.log(`Resized static image: ${resizedPath}`);
-
-                        // Upload the resized image to Mattermost
-                        const fileInfo = await uploadFile(
-                            this.bot.serverUrl,
-                            this.bot.botToken,
-                            session.channelId,
-                            resizedPath,
-                            `sticker_${packName}_${stickerIndex}.webp`
-                        );
-
-                        // Use response_url to preserve thread context (posts as user)
-                        if (session.responseUrl) {
-                            try {
-                                const axios = require('axios');
-                                const fileUrl = `${this.bot.serverUrl}/api/v4/files/${fileInfo.id}`;
-                                await axios.post(session.responseUrl, {
-                                    response_type: 'in_channel',
-                                    text: `![sticker](${fileUrl})`
-                                });
-                                console.log(`Sent resized static via response_url: ${fileUrl}`);
-                            } catch (err) {
-                                console.log('response_url failed for static, falling back:', err.message);
-                                await sendFileAsPost(
-                                    this.bot.serverUrl,
-                                    this.bot.botToken,
-                                    session.channelId,
-                                    fileInfo,
-                                    `@${session.username}\n`,
-                                    session.rootId
-                                );
-                            }
-                        } else {
-                            await sendFileAsPost(
-                                this.bot.serverUrl,
-                                this.bot.botToken,
-                                session.channelId,
-                                fileInfo,
-                                `@${session.username}\n`,
-                                session.rootId
-                            );
-                        }
-
-                        console.log(`Uploaded and sent resized static: ${packName}_${stickerIndex}`);
-                        res.json({ success: true });
-                        return;
-                    } catch (err) {
-                        console.error('Failed to resize/upload static, falling back to URL:', err);
-                    }
-                }
-
-                // Fallback: send original URL if resize fails
+            // Helper to post file to Mattermost (via response_url or direct)
+            const postFile = async (fileInfo) => {
+                const fileUrl = `${this.bot.serverUrl}/api/v4/files/${fileInfo.id}`;
                 if (session.responseUrl) {
+                    if (session.responseUrlDead) {
+                        // response_url already known dead, don't waste time
+                        return { expired: true };
+                    }
                     try {
                         const axios = require('axios');
                         await axios.post(session.responseUrl, {
                             response_type: 'in_channel',
-                            text: `![sticker](${sticker})`
+                            text: `![sticker](${fileUrl})`
                         });
                     } catch (err) {
-                        console.log('response_url failed for static, falling back:', err.message);
-                        await this.bot.sendMessage(session.channelId, `@${session.username}\n![sticker](${sticker})`, session.rootId);
+                        console.log('response_url expired for session:', sessionId);
+                        session.responseUrlDead = true;
+                        return { expired: true };
                     }
                 } else {
-                    await this.bot.sendMessage(session.channelId, `@${session.username}\n![sticker](${sticker})`, session.rootId);
+                    await sendFileAsPost(this.bot.serverUrl, this.bot.botToken, session.channelId, fileInfo, '', session.rootId);
                 }
-                res.json({ success: true });
-            } else {
-                res.status(400).json({ error: 'Failed to send sticker' });
+                return { expired: false };
+            };
+
+            let gifFilePath = null;
+
+            // Convert animated stickers (WEBM/TGS) to GIF, use file_id for stable cache keys
+            if (stickerUrl.includes('.webm') && this.webmHandler) {
+                try {
+                    gifFilePath = await this.webmHandler.convertWebmToGif(stickerUrl, fileId);
+                } catch (err) {
+                    console.error('WEBM conversion failed:', err.message);
+                }
+            } else if (stickerUrl.includes('.tgs') && this.tgsHandler) {
+                try {
+                    gifFilePath = await this.tgsHandler.convertTgsToGif(stickerUrl, fileId);
+                } catch (err) {
+                    console.error('TGS conversion failed:', err.message);
+                }
             }
+
+            // If we got a GIF, upload and send it
+            if (gifFilePath) {
+                const fileInfo = await uploadFile(this.bot.serverUrl, this.bot.botToken, session.channelId, gifFilePath, `sticker_${packName}_${stickerIndex}.gif`);
+                const result = await postFile(fileInfo);
+                if (result.expired) {
+                    return res.status(410).json({ error: 'session_expired', message: 'Session expired. Please run /sticker again.' });
+                }
+                console.log(`Sent animated GIF: ${packName}_${stickerIndex}`);
+                return res.json({ success: true });
+            }
+
+            // Static images: resize and upload
+            if (this.staticHandler && !stickerUrl.includes('.tgs')) {
+                try {
+                    const resizedPath = await this.staticHandler.resizeStaticImage(stickerUrl, fileId);
+                    const fileInfo = await uploadFile(this.bot.serverUrl, this.bot.botToken, session.channelId, resizedPath, `sticker_${packName}_${stickerIndex}.webp`);
+                    const result = await postFile(fileInfo);
+                    if (result.expired) {
+                        return res.status(410).json({ error: 'session_expired', message: 'Session expired. Please run /sticker again.' });
+                    }
+                    console.log(`Sent resized static: ${packName}_${stickerIndex}`);
+                    return res.json({ success: true });
+                } catch (err) {
+                    console.error('Static resize failed:', err.message);
+                }
+            }
+
+            // Final fallback: send error, NEVER post raw Telegram URLs
+            res.status(500).json({ error: 'Failed to convert sticker' });
         });
 
         // Create picker session

@@ -40,8 +40,8 @@ class StaticHandler {
         });
     }
 
-    async resizeStaticImage(imageUrl) {
-        const hash = this.generateHash(imageUrl);
+    async resizeStaticImage(imageUrl, fileId = null) {
+        const hash = this.generateHash(fileId || imageUrl);
         const cachedImage = path.join(this.cacheDir, `${hash}.webp`);
 
         // Check cache first
